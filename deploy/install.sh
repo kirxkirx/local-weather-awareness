@@ -220,6 +220,7 @@ fi
 
 # ---- directories ---------------------------------------------------------------------
 # prepare_dir and root_safe are the same in deploy/install-cron.sh (a test keeps them identical).
+UNSAFE_PARENT=""
 root_safe() {  # root_safe DIR: every existing ancestor of DIR is owned by root and writable by
                # nobody else, so no other user can swap a path component under root's feet
     local d="$1" uid mode
@@ -227,7 +228,10 @@ root_safe() {  # root_safe DIR: every existing ancestor of DIR is owned by root 
         d="$(dirname "$d")"
         [ -e "$d" ] || continue
         uid="$(stat -c %u "$d")" && mode="$(stat -c %a "$d")" || return 1
-        [ "$uid" = 0 ] && [ $((0$mode & 022)) -eq 0 ] || return 1
+        if [ "$uid" != 0 ] || [ $((0$mode & 022)) -ne 0 ]; then
+            UNSAFE_PARENT="$d (owner $(stat -c %U "$d"), mode $mode)"
+            return 1
+        fi
     done
     return 0
 }
@@ -263,9 +267,11 @@ prepare_dir() {  # prepare_dir WHAT DIR DEFAULT: DIR (mode 0755) owned by RUN_US
         if [ -n "$DRY_RUN" ]; then
             echo "+ su -s /bin/sh $RUN_USER -c 'mkdir -p $real && chmod 0755 $real'"
         elif ! as_run_user "mkdir -p $real && chmod 0755 $real && test -w $real" 2>/dev/null; then
-            die "$RUN_USER cannot create or write $what $real (it lies in a directory root does
-       not own, so this installer does not create it as root). Create it as $RUN_USER, or
-       choose a directory under a root-owned parent."
+            die "$RUN_USER cannot create or write $what $real.
+       Its parent $UNSAFE_PARENT is not owned by root alone, so this
+       installer will not create the directory as root. Create it yourself, hand it to
+       $RUN_USER, and rerun the installer:
+         mkdir -p $real && chown $RUN_USER:$RUN_GROUP $real && chmod 0755 $real"
         fi
     fi
     echo "$(printf '%-10s' "$what") $dir owned by $RUN_USER"

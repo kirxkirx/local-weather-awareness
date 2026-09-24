@@ -610,6 +610,18 @@ RUN_USER=weather /opt/local-weather-awareness/deploy/install-cron.sh
 #   DRY_RUN=1 RUN_USER=weather /opt/local-weather-awareness/deploy/install-cron.sh
 ```
 
+If the web root is not owned by root alone (on Gentoo, `htdocs` often belongs to another
+account or is group-writable; check with `ls -ld /var/www/localhost/htdocs`), the installer
+will not create the output directory as root, and stops with an error that names that
+parent. Create the directory yourself, hand it to the run user and rerun the installer:
+
+```bash
+mkdir -p /var/www/localhost/htdocs/myweather
+chown weather:weather /var/www/localhost/htdocs/myweather
+chmod 0755 /var/www/localhost/htdocs/myweather
+RUN_USER=weather /opt/local-weather-awareness/deploy/install-cron.sh
+```
+
 Always name `RUN_USER`. Without it the installer picks the sudo caller (your own account),
 else the owner of the checkout. It refuses root. It is idempotent: rerun it whenever you
 like. It:

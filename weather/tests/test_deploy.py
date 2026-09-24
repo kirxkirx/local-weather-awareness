@@ -1040,3 +1040,33 @@ def test_installers_never_hand_over_system_or_foreign_directories(tmp_path):
         pytest.skip("no root-owned directory to try")
     r, _ = _cron_dry_run(tmp_path, foreign, CACHE_DIR=str(tmp_path / "cache"))
     assert r.returncode != 0 and "already exists and belongs to root" in r.stderr, r.stderr
+
+
+@pytest.mark.parametrize("script", ["install-cron.sh", "install.sh"])
+def test_refusal_names_the_unsafe_parent_and_the_fix(tmp_path, script):
+    """A web root that root does not own alone (Gentoo's htdocs often belongs to another
+    account): the installer must not create the output directory as root, and when the run
+    user cannot create it either, the error names the offending parent and prints the exact
+    commands that hand the directory over (seen on the example host, 2026-09-24)."""
+    with open(os.path.join(DEPLOY, script)) as f:
+        text = f.read()
+    funcs = "\n".join(m.group(0) for m in re.finditer(
+        r"^(root_safe|prepare_dir)\(\) \{.*?^\}$", text, re.M | re.S))
+    parent = tmp_path / "htdocs"              # owned by the test user, not by root
+    parent.mkdir()
+    out = parent / "myweather"
+    harness = "\n".join([
+        'die() { echo "error: $*" >&2; exit 1; }',
+        'run() { echo "+ $*"; }',
+        'as_run_user() { return 1; }',        # the run user cannot write the parent
+        'RUN_USER=weather RUN_GROUP=weather RUN_HOME=/home/weather DRY_RUN=""',
+        'UNSAFE_PARENT=""',
+        funcs,
+        'prepare_dir "output dir" "%s" "/nonexistent/default"' % out,
+    ])
+    r = subprocess.run(["bash", "-c", harness], capture_output=True, text=True)
+    assert r.returncode != 0
+    assert "Its parent %s (owner " % parent in r.stderr, r.stderr
+    assert "mkdir -p %s && chown weather:weather %s && chmod 0755 %s" % (out, out, out) \
+        in r.stderr, r.stderr
+    assert "+ install -d" not in r.stdout      # root never created it
