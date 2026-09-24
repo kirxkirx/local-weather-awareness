@@ -289,6 +289,14 @@ def lsr_feed_url(template: str, hours: int) -> str:
 
 
 # ---- env helpers -------------------------------------------------------------
+# Placeholder contacts copied from documentation. OpenStreetMap blocks User-Agents that
+# contain them (verified 2026-09-24: any "example.org"/"example.com" in the string gets the
+# "Access blocked" tile, while the same string with a real address gets real tiles).
+_UA_PLACEHOLDER = re.compile(
+    r"example\.(?:org|com|net)|\bCONTACT[_ ]?E-?MAIL\b|\byou@|\byour[-_. ]?(?:e-?mail|address)\b",
+    re.IGNORECASE)
+
+
 def _env_str(name: str, default: str) -> str:
     v = os.environ.get(name)
     return default if v is None or v.strip() == "" else v.strip()
@@ -569,6 +577,13 @@ class Config:
             raise ValueError("WEATHER_REFRESH_SECONDS must be >= 30")
         if not self.user_agent.strip():
             raise ValueError("WEATHER_USER_AGENT must not be empty (api.weather.gov requires it)")
+        bad = _UA_PLACEHOLDER.search(self.user_agent)
+        if bad:
+            raise ValueError(
+                "WEATHER_USER_AGENT contains the placeholder %r. OpenStreetMap's tile servers "
+                "block any User-Agent with a placeholder contact such as example.org (the maps "
+                "then show an 'Access blocked' tile). Put a real contact address or URL there, "
+                "or leave the contact out." % bad.group(0))
         if self.run_budget_s < 10:
             raise ValueError("WEATHER_RUN_BUDGET must be >= 10 (seconds)")
         for s in self.sites:

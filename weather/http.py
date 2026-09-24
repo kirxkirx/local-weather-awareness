@@ -260,6 +260,51 @@ def fetch_conditional(url: str, cfg, etag: Optional[str] = None,
     return status, body if body is not None else b"", new_etag, new_lm
 
 
+def cache_policy(headers: Any) -> Tuple[bool, Optional[int]]:
+    """``(no_cache, max_age)`` from a response's ``Cache-Control`` (else ``Expires``).
+
+    ``no_cache`` is True for ``no-cache``, ``no-store``, ``private`` or ``max-age=0``: such
+    a reply must not be kept. ``max_age`` is the freshness lifetime in seconds, None when
+    the server gives none (callers then apply their own minimum)."""
+    cc = (_header(headers, "Cache-Control") or "").lower()
+    if any(t in cc for t in ("no-cache", "no-store", "private")):
+        return True, None
+    m = re.search(r"(?:^|[,\s])max-age\s*=\s*(\d+)", cc)
+    if m:
+        age = int(m.group(1))
+        return (age <= 0), (age if age > 0 else None)
+    exp = _header(headers, "Expires")
+    if exp:
+        try:
+            from email.utils import parsedate_to_datetime
+            left = int(parsedate_to_datetime(exp).timestamp() - time.time())
+            return (left <= 0), (left if left > 0 else None)
+        except (TypeError, ValueError, OverflowError):
+            pass
+    return False, None
+
+
+def fetch_cacheable(url: str, cfg, etag: Optional[str] = None,
+                    last_modified: Optional[str] = None, accept: Optional[str] = None,
+                    timeout: Optional[float] = None) -> Dict[str, Any]:
+    """Conditional GET that also reports the server's caching instructions, for resources
+    whose provider requires clients to honour them (OpenStreetMap tiles). Returns
+    ``{"status": 200|304, "body": bytes|None, "etag", "last_modified", "no_cache": bool,
+    "max_age": int|None}``. Same retry policy, run budget and circuit breaker as
+    ``get_bytes``; every failure is raised as ``HttpError``."""
+    headers = _headers(cfg, accept)
+    if etag:
+        headers["If-None-Match"] = etag
+    if last_modified:
+        headers["If-Modified-Since"] = last_modified
+    status, body, rh = _request(url, cfg, headers, "GET", timeout, None, pass_codes=(304,))
+    no_cache, max_age = cache_policy(rh)
+    return {"status": status, "body": None if status == 304 else (body or b""),
+            "etag": _header(rh, "ETag") or (etag if status == 304 else None),
+            "last_modified": _header(rh, "Last-Modified") or (last_modified if status == 304 else None),
+            "no_cache": no_cache, "max_age": max_age}
+
+
 def head_ok(url: str, cfg, timeout: Optional[float] = None) -> Optional[bool]:
     """Probe ``url`` with one HEAD request (used to discover the latest radar frame).
 

@@ -25,6 +25,7 @@ class FakeHttp:
         self.routes = []
         self.calls = []
         self.cond_meta = []             # (fragment, etag, last_modified) for fetch_conditional
+        self.no_cache = []              # fragments answered with Cache-Control: no-cache
 
     def add(self, fragment, body, status_ok=True):
         if isinstance(body, (dict, list)):
@@ -53,6 +54,22 @@ class FakeHttp:
         self.calls.append("HEAD " + url)
         body, ok = self._lookup(url)
         return bool(ok and body is not None)
+
+    def blocked(self, fragment):
+        """Answer ``fetch_cacheable`` for URLs containing ``fragment`` the way OpenStreetMap
+        answers a blocked client: HTTP 200 with ``Cache-Control: no-cache``."""
+        self.no_cache.append(fragment)
+
+    def fetch_cacheable(self, url, cfg, etag=None, last_modified=None, accept=None,
+                        timeout=None):
+        """Stand-in for ``http.fetch_cacheable``: 200 + the registered body (the plain URL is
+        recorded in ``.calls``, like ``get_bytes``)."""
+        self.calls.append(url)
+        body, ok = self._lookup(url)
+        if not ok or body is None:
+            raise _http.HttpError("fake: no route for %s" % url)
+        return {"status": 200, "body": body, "etag": None, "last_modified": None,
+                "no_cache": any(f in url for f in self.no_cache), "max_age": None}
 
     def validators(self, fragment, etag=None, last_modified=None):
         """Give the URLs containing ``fragment`` an ETag / Last-Modified for
@@ -89,6 +106,7 @@ def fake_http(monkeypatch):
     monkeypatch.setattr(_http, "get_bytes", fh.get_bytes)
     monkeypatch.setattr(_http, "head_ok", fh.head_ok)
     monkeypatch.setattr(_http, "fetch_conditional", fh.fetch_conditional)
+    monkeypatch.setattr(_http, "fetch_cacheable", fh.fetch_cacheable)
     return fh
 
 

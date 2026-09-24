@@ -1255,3 +1255,72 @@ def test_area_wide_events_are_listed_not_drawn(cfg, cache, tiles, site):
         assert f.read() == plain
     res = sm.render(NO_RADAR, [], out, roads=_roads([dict(area, area_wide=False)]))
     assert res["roads_drawn_ids"] == ["829db998"]
+
+
+# ---- tile server refusals and the permanent tile cache (2026-09-24) ---------------------
+def test_blocked_tiles_are_never_cached_and_pause_requests(cfg, cache, fake_http, site):
+    """OpenStreetMap answers a blocked client with HTTP 200, its "Access blocked" image and
+    Cache-Control: no-cache. That must never be cached (the first deployment did, and its
+    maps showed the blocked image), the build stops at the first refusal, and no other map
+    asks again during the back-off -- unless the User-Agent changes."""
+    fake_http.add("openstreetmap", _png(color=(255, 255, 255)))
+    fake_http.blocked("openstreetmap")
+    sm = radar.SiteMap(cfg, cache, site, "light", cfg.tile_url_light)
+    sm.basemap()
+    assert "refused" in sm.basemap_note
+    assert len(fake_http.calls) == 1                       # stopped at the first refusal
+    assert not [p for p in os.listdir(cfg.cache_dir) if p.startswith(("tile_", "basemap_"))]
+    # other maps of the same run (and of the next runs) do not ask at all
+    for theme, url in cfg.themes:
+        other = radar.SiteMap(cfg, cache, cfg.sites[0], theme, url)
+        other.basemap()
+        assert "refused" in other.basemap_note
+    assert len(fake_http.calls) == 1
+    # a corrected User-Agent lifts the pause at once, and good tiles are cached
+    fake_http.no_cache.clear()
+    cfg.user_agent = "local-weather-awareness-test (+https://github.com/kirxkirx/local-weather-awareness)"
+    ok = radar.SiteMap(cfg, cache, site, "light", cfg.tile_url_light)
+    assert ok.basemap().getpixel((3, 3)) == (255, 255, 255) and ok.basemap_note is None
+    assert len(fake_http.calls) > 1
+
+
+def test_http_403_is_a_refusal(cfg, cache, fake_http, site, monkeypatch):
+    def refuse(url, cfg, **kw):
+        fake_http.calls.append(url)
+        raise radar.http.HttpError("HTTP 403 for %s" % url)
+    monkeypatch.setattr(radar.http, "fetch_cacheable", refuse)
+    sm = radar.SiteMap(cfg, cache, site, "dark", cfg.tile_url_dark)
+    sm.basemap()
+    assert "refused" in sm.basemap_note and len(fake_http.calls) == 1
+
+
+def test_good_tiles_are_downloaded_once_and_kept(cfg, cache, tiles, site, monkeypatch):
+    """The owner's rule: a normal tile is downloaded once and reused for good -- no expiry,
+    no revalidation -- by both themes and by every later rebuild."""
+    sm = radar.SiteMap(cfg, cache, site, "light", cfg.tile_url_light)
+    sm.basemap()
+    n = len(tiles.calls)
+    # a year later, with the composites gone, a rebuild still fetches nothing
+    real = os.path.getmtime
+    monkeypatch.setattr(os.path, "getmtime", lambda p: real(p) - 365 * 86400)
+    for f in os.listdir(cfg.cache_dir):
+        if f.startswith("basemap_"):
+            os.remove(os.path.join(cfg.cache_dir, f))
+    for theme, url in cfg.themes:
+        radar.SiteMap(cfg, cache, site, theme, url).basemap()
+    assert len(tiles.calls) == n
+
+
+def test_legacy_cache_without_ok_meta_is_refetched_once(cfg, cache, tiles, site):
+    """Tiles and composites cached by the older code carry no "ok" meta and may be the
+    blocked image: they are fetched / rebuilt once, then kept."""
+    sm = radar.SiteMap(cfg, cache, site, "light", cfg.tile_url_light)
+    sm.basemap()
+    n = len(tiles.calls)
+    for f in os.listdir(cfg.cache_dir):                     # turn the cache into a legacy one
+        if f.endswith("__meta.json"):
+            os.remove(os.path.join(cfg.cache_dir, f))
+    radar.SiteMap(cfg, cache, site, "light", cfg.tile_url_light).basemap()
+    assert len(tiles.calls) == 2 * n                        # every tile fetched once more
+    radar.SiteMap(cfg, cache, site, "light", cfg.tile_url_light).basemap()
+    assert len(tiles.calls) == 2 * n                        # and kept from then on

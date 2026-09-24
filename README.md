@@ -251,10 +251,17 @@ as the OSM attribution guidelines ask for on web pages.
 - **OpenStreetMap** data is © OpenStreetMap contributors under the ODbL; the credit line is
   mandatory wherever the map is shown. The standard tiles from `tile.openstreetmap.org` are
   run by volunteers under the [OSM tile usage policy](https://operations.osmfoundation.org/policies/tiles/):
-  a User-Agent that identifies the application (`WEATHER_USER_AGENT`, with a contact URL)
-  and light use. Tiles are fetched once per site and theme (~12 tiles each) and then served
-  from the disk cache, so the load is ~120 tile requests in total for the five example
-  sites, not per run. Any other
+  a User-Agent that identifies the application (`WEATHER_USER_AGENT`) and light use. Each
+  tile is **downloaded once and kept in the disk cache for good** (both themes and every
+  rebuild reuse it), so the five example sites cost about 45 tile requests in total, ever,
+  not per run. OpenStreetMap **blocks** a User-Agent that is a library default, imitates a
+  browser, or carries a placeholder contact such as `example.org` (checked 2026-09-24: the
+  same string with a real address gets real tiles); its "Access blocked" tile comes with
+  HTTP 200 and `Cache-Control: no-cache`. That reply, and any 403/418/429, is never
+  cached: the build stops at the first refusal, logs an error, draws the maps on a plain
+  background with a note, and makes no tile request for 6 hours unless the User-Agent or
+  tile URL changes. A placeholder contact in `WEATHER_USER_AGENT` stops the run at start-up
+  with a configuration error. Any other
   `{z}/{x}/{y}` raster source can be configured (`WEATHER_TILE_URL_DARK` / `_LIGHT`); a
   genuinely dark tile set is left as served (`WEATHER_TILE_DARK_INVERT=0` forces that).
 
@@ -573,7 +580,9 @@ chmod 0644 /etc/local-weather-awareness.env
 Edit three things in that file:
 
 - Replace `CONTACT_EMAIL` with an e-mail address where NWS can reach you. api.weather.gov
-  requires a User-Agent and asks for a contact in it. The built-in default,
+  requires a User-Agent and asks for a contact in it. Never leave a placeholder there:
+  OpenStreetMap blocks User-Agents with placeholder contacts (`example.org`, `you@…`), and
+  the generator refuses to start with one. The built-in default,
   `local-weather-awareness (+https://github.com/kirxkirx/local-weather-awareness)`, names
   only the project, so every deployment should add its own address this way.
 - Set `WEATHER_OUT_DIR` to the DocumentRoot found in step 2, plus `/myweather`.
@@ -823,6 +832,11 @@ local-weather-awareness line.
 - **Tiny, unscalable map labels, with `no TrueType font found (tried …)` in the log.**
   Install `media-fonts/dejavu`, and check Pillow's FreeType support (see
   [Packages](#1-packages)).
+- **Maps show an "Access blocked" tile, or the log says "tile server refused the map
+  tiles".** OpenStreetMap refused the User-Agent. Put a real contact (or none) in
+  `WEATHER_USER_AGENT`; the pause lifts as soon as the User-Agent changes. Tiles cached by
+  versions before 2026-09-24 could hold the blocked image; they are fetched once more
+  automatically, or clear them with `rm -f ~apache/.cache/local-weather-awareness/{tile,basemap}_*`.
 - **`HTTP 403` from api.weather.gov.** The User-Agent was rejected. Set
   `WEATHER_USER_AGENT` with a contact e-mail address (see
   [step 5](#5-configuration-etclocal-weather-awarenessenv)).

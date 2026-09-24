@@ -621,14 +621,24 @@ the cache (`cache.put_bytes("mrms_last", ".png", ...)`, `cache.put("mrms_last_me
 "image": Image|None}`. Never raise.
 
 `basemap()`: fetch the tiles in `frame.tile_range()` (`tile_url.format(z=, x=, y=)`; the
-bytes of each tile that decodes are kept in the cache as `tile_<sha1(url)[:16]>` for 7 days,
-so the two themes share one fetch and a rebuilt composite costs no requests), paste on the
+tiles come from `http.fetch_cacheable`, which also reports the reply's `Cache-Control`; each
+tile that decodes is kept **for good** as `tile_<sha1(url)[:16]>` with meta
+`tile_…__meta = {"ok": true, "url"}` — downloaded once, reused by both themes and every
+rebuild; entries without the `ok` meta (written before 2026-09-24, possibly OSM's blocked
+tile) are fetched once more. A reply marked `no-cache`/`no-store`/`private`/`max-age=0`
+(OSM's "Access blocked" tile: HTTP 200 + `Cache-Control: no-cache`) or an HTTP
+403/418/429 raises `radar.TileRefused`: nothing is stored, the build stops, and the cache
+entry `tiles_refused = {"tag": sha1(user_agent|tile_url)[:12], "reason"}` pauses all tile
+requests for `TILE_REFUSED_BACKOFF` (6 h) unless the User-Agent or tile URL changes;
+`basemap_note` then reads "basemap unavailable: the tile server refused the requests"),
+paste on the
 tile canvas, crop `frame.canvas_crop()`, resize to `frame.size` (LANCZOS);
 for the dark theme with `cfg.tile_dark_invert`, each **tile** whose mean luminance is above
 128 (`radar.LIGHT_TILE_LUMINANCE`) goes through `invert_lightness()` (`c → c + 255 −
 (max+min)` per channel: lightness flipped, hue and saturation kept) before it is pasted, and
 a missing tile leaves the theme background colour (`THEMES[theme]["bg"]`), so a partial
-basemap never comes out half inverted; cache as `cache.put_bytes(SiteMap.basemap_key, ".png")` where
+basemap never comes out half inverted; cache as `cache.put_bytes(SiteMap.basemap_key, ".png")`
+with meta `{"ok": true}` (a composite without it is rebuilt once), where
 `basemap_key = "basemap_<slug>_<theme>_<frame.cache_key()>_<8 hex of sha1(tile_url|invert)>"`
 (so a changed tile URL or inversion setting never reuses an old composite), only when ALL
 tiles were fetched (a partial basemap is used for this run but not persisted).

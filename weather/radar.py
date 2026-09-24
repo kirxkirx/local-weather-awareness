@@ -41,6 +41,7 @@ import io
 import logging
 import math
 import os
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Sequence, Tuple
 
@@ -108,7 +109,15 @@ FONT_PATHS = (
 
 MRMS_LAST_KEY = "mrms_last"
 MRMS_META_KEY = "mrms_last_meta"
-TILE_TTL = 7 * 86400        # raw tile bytes stay on disk this long (both themes share them)
+TILE_REFUSED_BACKOFF = 6 * 3600   # after the tile server refuses us, no tile requests
+#                                  for this long (unless the User-Agent / tile URL changes)
+REFUSED_KEY = "tiles_refused"
+
+
+class TileRefused(Exception):
+    """The tile server refused us (blocked tile, 403/418/429): stop asking for a while."""
+
+
 HEAD_TIMEOUT = 8.0          # s per frame probe: a static-file HEAD answers in well under 1 s
 
 # Road items (roads.site_roads): monochrome, in the theme's ink over a halo in its stroke
@@ -820,6 +829,13 @@ class SiteMap:
         return img
 
     def _basemap_from_cache(self, key: str):
+        """The cached composite. Tiles and composites are kept for good once verified (the
+        owner's choice: download each tile once, reuse it for ever); a composite without the
+        "ok" meta was written by an older version that could cache the tile server's
+        "Access blocked" tile, so it is rebuilt once."""
+        meta, _ = self.cache.get_any(key + "__meta")
+        if not (isinstance(meta, dict) and meta.get("ok")):
+            return None
         data = self.cache.get_bytes(key, ".png")
         if not data:
             return None
@@ -837,22 +853,43 @@ class SiteMap:
         log.debug("basemap %s loaded from cache (tiles not fetched)", key)
         return img
 
+    def _refusal_tag(self) -> str:
+        """Who was refused: the User-Agent and the tile URL template. A changed
+        WEATHER_USER_AGENT or WEATHER_TILE_URL_* lifts the back-off at once."""
+        return hashlib.sha1(("%s|%s" % (self.cfg.user_agent, self.tile_url))
+                            .encode("utf-8")).hexdigest()[:12]
+
     def _tile(self, url: str):
-        """One decoded RGB tile. Its bytes come from the disk cache when younger than
-        ``TILE_TTL`` -- both themes use the same tiles and a rebuilt composite must not hit
-        the tile server again -- and only bytes that decode are cached, so a bogus 200
-        reply (an HTML error page, a truncated file) is retried on the next run."""
+        """One decoded RGB tile. A good tile is downloaded ONCE and then served from the
+        disk cache for good (both themes and every rebuild share it). Only a tile whose
+        cache entry carries the "ok" meta counts: tiles cached by older versions may be the
+        tile server's "Access blocked" image and are fetched once more. A reply the server
+        marks ``no-cache`` / ``no-store`` (OpenStreetMap sends its blocked tile with HTTP 200
+        and ``Cache-Control: no-cache``) or a 403/418/429 raises ``TileRefused`` and is never
+        stored; bytes that do not decode are not stored either."""
         key = "tile_" + hashlib.sha1(url.encode("utf-8")).hexdigest()[:16]
-        data = self.cache.get_bytes(key, ".png", max_age=TILE_TTL)
-        if data is not None:
-            try:
-                return _decode_tile(data)
-            except Exception as e:      # noqa: BLE001 - a corrupt cache file: refetch
-                log.warning("cached tile %s unreadable (%s); refetching", url, e)
-        data = http.get_bytes(url, self.cfg, accept="image/png")
+        meta, _ = self.cache.get_any(key + "__meta")
+        if isinstance(meta, dict) and meta.get("ok"):
+            data = self.cache.get_bytes(key, ".png")
+            if data is not None:
+                try:
+                    return _decode_tile(data)
+                except Exception as e:  # noqa: BLE001 - a corrupt cache file: refetch
+                    log.warning("cached tile %s unreadable (%s); refetching", url, e)
+        try:
+            res = http.fetch_cacheable(url, self.cfg, accept="image/png")
+        except http.HttpError as e:
+            if re.match(r"HTTP (403|418|429)\b", str(e)):
+                raise TileRefused(str(e))
+            raise
+        if res["no_cache"]:
+            raise TileRefused("the tile server sent a tile marked not cacheable "
+                              "(its 'Access blocked' tile)")
+        data = res["body"] or b""
         tile = _decode_tile(data)
         try:
             self.cache.put_bytes(key, ".png", data)
+            self.cache.put(key + "__meta", {"ok": True, "url": url})
         except Exception as e:          # noqa: BLE001 - the cache is an optimisation
             log.warning("could not cache tile %s: %s", url, e)
         return tile
@@ -861,16 +898,23 @@ class SiteMap:
         """Composite the covering tiles on a canvas of the theme's background colour. For
         the dark theme each light tile is inverted on its own before it is pasted: deciding
         on the whole composite would let the placeholder of missing tiles tip the balance
-        (a bright block where tiles are missing, or light tiles left un-inverted)."""
+        (a bright block where tiles are missing, or light tiles left un-inverted).
+
+        When the tile server refuses us, the build stops at once (no further tile requests
+        this run) and a back-off marker keeps every map of the next ``TILE_REFUSED_BACKOFF``
+        from asking again; the maps are drawn on a plain background with a note."""
         fr = self.frame
         canvas = Image.new("RGB", fr.canvas_size(), self.colors["bg"])
         got = expected = inverted = 0
         invert = self._invert_wanted()
+        refused = self._refused()
         try:
             tx0, ty0, tx1, ty1 = fr.tile_range()
             expected = (tx1 - tx0 + 1) * (ty1 - ty0 + 1)
             for tx in range(tx0, tx1 + 1):
                 for ty in range(ty0, ty1 + 1):
+                    if refused:
+                        break
                     url = self.tile_url.format(z=fr.zoom, x=tx, y=ty)
                     try:
                         tile = self._tile(url)
@@ -881,29 +925,57 @@ class SiteMap:
                             inverted += 1
                         canvas.paste(tile, fr.tile_paste_origin(tx, ty))
                         got += 1
+                    except TileRefused as e:
+                        refused = str(e)
+                        self._mark_refused(refused)
                     except Exception as e:      # noqa: BLE001 - one tile must not kill the map
                         log.warning("tile z%d/%d/%d failed: %s", fr.zoom, tx, ty, e)
+                if refused:
+                    break
         except Exception as e:                  # noqa: BLE001 - bad URL template etc.
             log.error("basemap build failed for %s/%s: %s", self.slug, self.theme, e)
         if inverted:
             log.debug("%s/%s: %d of %d light tiles inverted for the dark theme",
                       self.slug, self.theme, inverted, got)
         img = canvas.crop(fr.canvas_crop()).resize(fr.size, _resample())
+        if refused:
+            self.basemap_note = "basemap unavailable: the tile server refused the requests"
+            return img
         if expected and got == expected:
             self.basemap_note = None
             try:
                 buf = io.BytesIO()
                 img.save(buf, format="PNG")
                 self.cache.put_bytes(key, ".png", buf.getvalue())
+                self.cache.put(key + "__meta", {"ok": True})
                 log.info("basemap %s built from %d tiles and cached", key, got)
             except Exception as e:              # noqa: BLE001 - cache is an optimisation
                 log.warning("could not cache basemap %s: %s", key, e)
         else:
-            # A partial basemap is fine for THIS run but must never be cached forever.
+            # A partial basemap is fine for THIS run but must never be cached.
             self.basemap_note = "basemap incomplete (%d/%d tiles)" % (got, expected)
             log.warning("%s/%s: %s -- not cached, will retry next run",
                         self.slug, self.theme, self.basemap_note)
         return img
+
+    def _refused(self) -> Optional[str]:
+        """The reason of a still-running back-off for this User-Agent + tile URL, else None."""
+        mark = self.cache.get(REFUSED_KEY, TILE_REFUSED_BACKOFF)
+        if isinstance(mark, dict) and mark.get("tag") == self._refusal_tag():
+            log.debug("%s/%s: tile requests paused: %s", self.slug, self.theme, mark.get("reason"))
+            return str(mark.get("reason") or "refused")
+        return None
+
+    def _mark_refused(self, reason: str) -> None:
+        log.error("tile server refused the map tiles (%s). No tile requests for the next %d h. "
+                  "OpenStreetMap blocks User-Agents that are a library default or carry a "
+                  "placeholder contact such as example.org: check WEATHER_USER_AGENT "
+                  "(https://osm.wiki/Blocked, https://operations.osmfoundation.org/policies/tiles/)",
+                  reason, TILE_REFUSED_BACKOFF // 3600)
+        try:
+            self.cache.put(REFUSED_KEY, {"tag": self._refusal_tag(), "reason": reason})
+        except Exception as e:                  # noqa: BLE001
+            log.warning("could not record the tile back-off: %s", e)
 
     # -- radar ---------------------------------------------------------------------
     def _remap(self) -> Tuple[list, list]:

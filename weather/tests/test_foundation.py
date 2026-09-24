@@ -509,3 +509,35 @@ def test_cached_bytes_skipped_serves_last_good(cfg, cache, net):
     r = http.cached_bytes(cfg, cache, "nmr", NMR, 0, 600)
     assert r["ok"] and r["stale"] and r["data"] == b"good" and r["error"].startswith("skipped:")
     assert fake.calls == []
+
+
+@pytest.mark.parametrize("ua", [
+    # the string the example deployment first used (split so no address sits in the file)
+    "local-weather-awareness (+https://github.com/kirxkirx/local-weather-awareness; you" "@example.org)",
+    "local-weather-awareness (+https://example.com)",
+    "local-weather-awareness (CONTACT_EMAIL)",
+    "local-weather-awareness (your-email)",
+])
+def test_placeholder_user_agent_is_rejected(ua, tmp_path):
+    """OpenStreetMap blocks a User-Agent with a placeholder contact (the example deployment's
+    maps showed the 'Access blocked' tile until it was replaced): refuse it at start-up."""
+    with pytest.raises(ValueError, match="placeholder"):
+        Config.from_env(out_dir=str(tmp_path), user_agent=ua)
+
+
+def test_real_contact_user_agent_is_accepted(tmp_path):
+    for ua in ("local-weather-awareness (+https://github.com/kirxkirx/local-weather-awareness)",
+               "local-weather-awareness (+https://github.com/kirxkirx/local-weather-awareness; "
+               "https://tau.kirx.net/myweather/)"):
+        assert Config.from_env(out_dir=str(tmp_path), user_agent=ua).user_agent == ua
+
+
+def test_cache_policy_parsing():
+    class H(dict):
+        def get(self, k, d=None):
+            return super().get(k, d)
+    assert http.cache_policy(H({"Cache-Control": "no-cache"})) == (True, None)
+    assert http.cache_policy(H({"Cache-Control": "max-age=524662, stale-while-revalidate=604800"})) == (False, 524662)
+    assert http.cache_policy(H({"Cache-Control": "max-age=0"})) == (True, None)
+    assert http.cache_policy(H({})) == (False, None)
+    assert http.cache_policy(None) == (False, None)
