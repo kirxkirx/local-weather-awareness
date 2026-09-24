@@ -869,8 +869,9 @@ def _private_patterns():
 
 _EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}")
 # Public agency addresses that appear verbatim in feed fixtures (the NWS CAP "sender", the
-# NMRoads feed_info contact) are data, not anybody's private address.
-_EMAIL_OK = (".gov",)
+# NMRoads feed_info contact) are data, not anybody's private address; the reserved
+# documentation domains (RFC 2606) are the placeholder the docs tell deployers to replace.
+_EMAIL_OK = (".gov", "@example.org", "@example.com", "@example.net")
 _SKIP_DIRS = {".git", "out", "__pycache__", ".pytest_cache", "venv", ".venv"}
 
 

@@ -12,6 +12,12 @@ local weather situation awareness pages.**
   decisions.** It can be late, incomplete or wrong whenever an upstream feed is. For
   official forecasts, watches and warnings use [weather.gov](https://www.weather.gov/). For
   New Mexico road conditions use [nmroads.com](https://nmroads.com/).
+- **Crucial: put your real e-mail address in `WEATHER_USER_AGENT`.** The deployment
+  examples below show the placeholder `you@example.org`. It is absolutely crucial to
+  replace it with a real e-mail address before the first run: with the placeholder left
+  in, OpenStreetMap blocks every map tile request (the maps show an "Access blocked" tile)
+  and the generator refuses to start. See
+  [step 5](#5-configuration-etclocal-weather-awarenessenv).
 - **Origin.** The code is derived from
   [github.com/kirxkirx/ttustatus](https://github.com/kirxkirx/ttustatus), an observatory
   status page. It keeps that page's style, the MRMS radar and basemap machinery, the NWS
@@ -212,7 +218,9 @@ the output directory, no longer linked, until you delete them.
 All sources are free and need no API key. `api.weather.gov` requires a `User-Agent` that
 identifies the application, and NWS asks for a contact in it: every deployment adds its
 operator's e-mail address to `WEATHER_USER_AGENT` (see
-[step 5](#5-configuration-etclocal-weather-awarenessenv)).
+[step 5](#5-configuration-etclocal-weather-awarenessenv)). That address must be real:
+OpenStreetMap's tile servers block any User-Agent with a placeholder such as
+`you@example.org`, and no basemap tile can then be fetched.
 
 | Data | Source | Fetched / cached |
 |------|--------|------------------|
@@ -572,17 +580,22 @@ checkout. It needs read access (a umask of 022 gives that) and the executable bi
 cat > /etc/local-weather-awareness.env <<'EOF'
 WEATHER_OUT_DIR=/var/www/localhost/htdocs/myweather
 WEATHER_PAGE_URL=https://tau.kirx.net/myweather/
-WEATHER_USER_AGENT=local-weather-awareness (+https://github.com/kirxkirx/local-weather-awareness; CONTACT_EMAIL)
+WEATHER_USER_AGENT=local-weather-awareness (+https://github.com/kirxkirx/local-weather-awareness; you@example.org)
 EOF
 chmod 0644 /etc/local-weather-awareness.env
 ```
 
+> **Absolutely crucial: replace `you@example.org` with your real e-mail address.** Without
+> a real address the OpenStreetMap map tiles cannot be fetched: OpenStreetMap blocks every
+> tile request whose User-Agent carries a placeholder such as `you@example.org` (the maps
+> then show an "Access blocked" tile), and the generator refuses to start with one. Check
+> with `grep USER_AGENT /etc/local-weather-awareness.env` before step 6.
+
 Edit three things in that file:
 
-- Replace `CONTACT_EMAIL` with an e-mail address where NWS can reach you. api.weather.gov
-  requires a User-Agent and asks for a contact in it. Never leave a placeholder there:
-  OpenStreetMap blocks User-Agents with placeholder contacts (`example.org`, `you@…`), and
-  the generator refuses to start with one. The built-in default,
+- Replace `you@example.org` with a real e-mail address where NWS and OpenStreetMap can reach
+  you (see the box above). api.weather.gov requires a User-Agent and asks for a contact in
+  it. The built-in default,
   `local-weather-awareness (+https://github.com/kirxkirx/local-weather-awareness)`, names
   only the project, so every deployment should add its own address this way.
 - Set `WEATHER_OUT_DIR` to the DocumentRoot found in step 2, plus `/myweather`.
@@ -879,7 +892,9 @@ both. `install.sh` stops on a host without `systemctl` and points to `install-cr
 2. **Copy the repository** to `/opt/local-weather-awareness` as in
    [step 4](#4-copy-the-repository). Create `/etc/local-weather-awareness.env` as in
    [step 5](#5-configuration-etclocal-weather-awarenessenv), at least for the contact
-   e-mail address in `WEATHER_USER_AGENT` and for `WEATHER_PAGE_URL`, this host's address
+   e-mail address in `WEATHER_USER_AGENT` (**crucial**: replace `you@example.org` with a
+   real address, or OpenStreetMap blocks the map tiles) and for `WEATHER_PAGE_URL`, this
+   host's address
    (`https://<host>/myweather/`). There, the default output directory is
    `/var/www/html/myweather`, under the usual DocumentRoot `/var/www/html`.
 3. **Install:** `sudo RUN_USER=weather /opt/local-weather-awareness/deploy/install.sh`
@@ -954,7 +969,7 @@ win over both. Durations are in seconds. The cron wrapper's own variables (`WEAT
 | `WEATHER_FORECAST_PERIODS` | `14` | day/night periods shown (NWS returns 14) |
 | `WEATHER_POP_HIGHLIGHT_PCT` | `30` | precipitation probability at/above which cells are highlighted |
 | `WEATHER_SHOW_SUN` | `1` | sun/twilight row |
-| `WEATHER_USER_AGENT` | `local-weather-awareness (+https://github.com/kirxkirx/local-weather-awareness)` | sent with every request; required by NWS, which asks for a contact in it: add your e-mail address after the URL, separated by a semicolon (see [step 5](#5-configuration-etclocal-weather-awarenessenv)) |
+| `WEATHER_USER_AGENT` | `local-weather-awareness (+https://github.com/kirxkirx/local-weather-awareness)` | sent with every request; required by NWS, which asks for a contact in it: add your e-mail address after the URL, separated by a semicolon (see [step 5](#5-configuration-etclocal-weather-awarenessenv)). **It must be a real address**: with a placeholder such as `you@example.org` OpenStreetMap blocks every tile request and the generator refuses to start |
 | `WEATHER_HTTP_TIMEOUT` | `25` | per-request timeout |
 | `WEATHER_HTTP_RETRIES` | `2` | retries on network errors / 5xx / 429 |
 | `WEATHER_RUN_BUDGET` | `240` | network time budget per run (min 10); then every further fetch is skipped and last-good copies are used (see [Operational notes](#operational-notes)) |
