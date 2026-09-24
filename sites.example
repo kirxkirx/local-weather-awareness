@@ -1,0 +1,73 @@
+# local-weather-awareness: sites file (WEATHER_SITES_FILE).
+#
+# These are the example deployment's five sites, the same list the generator uses when no
+# site list is configured. To use your own sites, copy this file, edit it and point
+# WEATHER_SITES_FILE at the copy in /etc/local-weather-awareness.env, e.g. (as root)
+#   mkdir -p /etc/local-weather-awareness
+#   cp sites.example /etc/local-weather-awareness/sites
+#   chmod 644 /etc/local-weather-awareness/sites
+#   echo 'WEATHER_SITES_FILE=/etc/local-weather-awareness/sites' >> /etc/local-weather-awareness.env
+# The next run picks the file up: nothing to restart or reinstall. Use an absolute path (a
+# relative one is resolved from the directory the generator runs in). The run user must be
+# able to read the file. WEATHER_SITES (the same entries separated by ';') and --sites on
+# the command line take precedence over this file when they are set.
+#
+# FORMAT: one site per line,
+#   slug|Name|lat|lon
+#   slug|Name|lat|lon|tz
+# Blank lines and lines starting with '#' are ignored ('#' in the middle of a line is not a
+# comment). A malformed line, a repeated slug, a site outside the US, a file without sites
+# or an unreadable file stops the generator with exit status 2 and names the file and line;
+# it never falls back to other sites. Page order = file order; the first site's clock is the
+# page's clock, and
+# the sun at the first site decides whether the page opens in its night palette.
+#
+# slug  Letters, digits, '_' and '-', unique without regard to case. Used in file names
+#       (radar_<slug>_dark.png) and in the page's anchors (#site-<slug>). Old maps of a
+#       renamed or removed site stay in the output directory (unlinked) until you delete
+#       them. The NWS data are cached by location, so moving a site under the same slug is
+#       fine: the next run fetches the new place's forecast.
+# Name  What the page shows. The part before the first comma goes into the page title
+#       ("Fort Sumner, NM" -> "Fort Sumner"), unless WEATHER_TITLE is set.
+# lat, lon
+#       WGS84 decimal degrees, north and east positive, so US longitudes are negative.
+#       Four decimals are about 10 m. The map (100 x 100 miles by default,
+#       WEATHER_MAP_MILES) is centred on this point, the marker sits on it, and the NWS
+#       forecast is the one for the NWS grid cell that contains it. To find a point:
+#       in OpenStreetMap (openstreetmap.org), right-click the spot, choose "Show address"
+#       and copy the two numbers shown; or zoom in and read them from the address bar
+#       (#map=<zoom>/<lat>/<lon>). The NWS forecast page for a spot (forecast.weather.gov)
+#       also prints its lat/lon. A town centre is fine; an observatory, a farm or a
+#       trailhead works just as well. A point whose map would cross the 180th meridian
+#       (the western Aleutians near Amchitka) is refused: the maps cannot be drawn there.
+# tz    Optional IANA time zone name (America/Denver, America/Chicago, America/Phoenix,
+#       America/New_York, Pacific/Honolulu, ...). NWS supplies the zone of every point,
+#       so this is only a fallback: it keeps the local times right when the NWS point
+#       metadata is unavailable (for example the very first run during an NWS outage).
+#       Without it such times are shown in UTC. An unknown name is a startup error.
+#
+# WHAT ADAPTS AUTOMATICALLY: the NWS grid, forecast/county/fire zones, station list and
+# time zone (from api.weather.gov/points), the NWS alert query (WEATHER_ALERT_AREAS=auto
+# asks for every state, territory and NWS marine area, such as LM for Lake Michigan, whose
+# box touches one of the maps), the maps, the navigation and the page title.
+#
+# LIMITS:
+# - US only. Forecasts, observations and alerts come from the US National Weather
+#   Service, which covers the 50 states, DC, Puerto Rico and the US territories. A site
+#   whose map touches no US state or territory is refused at startup (often a longitude
+#   without its minus sign). NWS has no forecast grid for American Samoa: the page says so
+#   there and still shows alerts and sun times.
+# - Radar: the NOAA MRMS composite covers the contiguous US only. Maps in Alaska, Hawaii,
+#   Puerto Rico or the territories get no radar layer and say so on the map; when no map
+#   reaches it, the radar frame is not fetched at all.
+# - Road closures: New Mexico only (NMDOT's NMRoads feed and NWS storm reports from New
+#   Mexico). A map outside New Mexico (by the state's outline) says so while another
+#   site's map reaches New Mexico; when none does, nothing road-related is fetched or shown.
+# - Load: every site adds up to 3-4 NWS requests per run when their caches expire, and
+#   about a dozen basemap tiles, fetched once. A handful of sites, or a dozen, is fine.
+
+lubbock|Lubbock, TX|33.5779|-101.8552|America/Chicago
+clovis|Clovis, NM|34.4048|-103.2052|America/Denver
+fort_sumner|Fort Sumner, NM|34.4717|-104.2456|America/Denver
+socorro|Socorro, NM|34.0584|-106.8914|America/Denver
+albuquerque|Albuquerque, NM|35.0844|-106.6504|America/Denver
