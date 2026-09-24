@@ -3,7 +3,7 @@
 # systemd (tau.kirx.net runs Gentoo with OpenRC) or any host with a cron daemon. The
 # installer deploy/install-cron.sh puts this line into the run user's crontab:
 #
-#   */5 * * * * /opt/local-weather-awareness/deploy/local-weather-awareness-cron.sh # local-weather-awareness
+#   */5 * * * * <checkout>/deploy/local-weather-awareness-cron.sh # local-weather-awareness
 #
 # One call:
 #   1. changes to the repository: the directory above this script (symlinks resolved);

@@ -131,7 +131,7 @@ Put the list in `/etc/local-weather-awareness.env` in one of two ways:
 
   ```bash
   mkdir -p /etc/local-weather-awareness
-  cp /opt/local-weather-awareness/sites.example /etc/local-weather-awareness/sites
+  cp <checkout>/sites.example /etc/local-weather-awareness/sites
   chmod 0644 /etc/local-weather-awareness/sites    # then edit it
   echo 'WEATHER_SITES_FILE=/etc/local-weather-awareness/sites' >> /etc/local-weather-awareness.env
   ```
@@ -407,11 +407,13 @@ CI (GitHub Actions) runs the same on every push.
 ## Deploy on a Gentoo/OpenRC host with cron (example: tau.kirx.net)
 
 The example deployment, tau.kirx.net, runs Gentoo Linux with OpenRC and no systemd, so
-**cron** runs the generator. `deploy/install-cron.sh` puts one line into the crontab of an
-unprivileged user:
+**cron** runs the generator. The checkout lives in the home of an ordinary admin account
+(`kirx` there) and the generator runs as `apache`, which owns Gentoo's web root, so it can
+write the output directory without any hand-over. `deploy/install-cron.sh` puts one line
+into `apache`'s crontab:
 
 ```
-*/5 * * * * /opt/local-weather-awareness/deploy/local-weather-awareness-cron.sh # local-weather-awareness
+*/5 * * * * /home/kirx/local-weather-awareness/deploy/local-weather-awareness-cron.sh # local-weather-awareness
 ```
 
 Apache then serves the output directory as https://tau.kirx.net/myweather/. The same steps
@@ -419,16 +421,16 @@ work on any host with a cron daemon; use your own host name wherever tau.kirx.ne
 
 | What | Where |
 |------|-------|
-| checkout | `/opt/local-weather-awareness` (the run user only reads it) |
-| run user | `weather`: unprivileged, no login shell |
+| checkout | `~kirx/local-weather-awareness`: your own account owns it and runs `git pull`; the run user only reads it |
+| run user | `apache`, the owner of the web root (a dedicated account is stricter, see step 3) |
 | output | `<DocumentRoot>/myweather`, on a stock Gentoo Apache `/var/www/localhost/htdocs/myweather` |
-| cache | `~weather/.cache/local-weather-awareness` |
-| configuration | `/etc/local-weather-awareness.env`, optionally overridden by `~weather/local-weather-awareness.env` |
+| cache | `~apache/.cache/local-weather-awareness` (`apache`'s home is `/var/www`, outside `htdocs`) |
+| configuration | `/etc/local-weather-awareness.env`, optionally overridden by `~apache/local-weather-awareness.env` |
 | logs | syslog, tag `local-weather-awareness` (a log file when there is no syslog, see step 6) |
 
 **Run the commands below in a root shell** (`su -`). A Gentoo stage3 has no `sudo`; if you
 installed `app-admin/sudo`, prefix the commands with `sudo` instead. Commands that must run
-as the run user are written with `su -s /bin/sh weather -c '…'`, which works from a root
+as the run user are written with `su -s /bin/sh apache -c '…'`, which works from a root
 shell without sudo. Steps marked *(verify on the host)* follow Gentoo's documentation and
 defaults but have not been tried on tau.kirx.net itself; check them there the first time.
 
@@ -454,9 +456,9 @@ one cron uses. On Gentoo, `python3` is a python-exec wrapper that picks a versio
 
 ```bash
 # as the run user, with cron's bare environment (PATH=/usr/bin:/bin)
-su -s /bin/sh weather -c 'cd / && env -i HOME=/home/weather PATH=/usr/bin:/bin python3 --version'
-su -s /bin/sh weather -c 'cd / && env -i HOME=/home/weather PATH=/usr/bin:/bin python3 -c "import PIL; print(PIL.__version__)"'
-su -s /bin/sh weather -c 'cd / && env -i HOME=/home/weather PATH=/usr/bin:/bin python3 -c "from PIL import features; print(features.check(\"zlib\"), features.check(\"freetype2\"))"'
+su -s /bin/sh apache -c 'cd / && env -i HOME=/var/www PATH=/usr/bin:/bin python3 --version'
+su -s /bin/sh apache -c 'cd / && env -i HOME=/var/www PATH=/usr/bin:/bin python3 -c "import PIL; print(PIL.__version__)"'
+su -s /bin/sh apache -c 'cd / && env -i HOME=/var/www PATH=/usr/bin:/bin python3 -c "from PIL import features; print(features.check(\"zlib\"), features.check(\"freetype2\"))"'
 ```
 
 (Replace `/home/weather` with the run user's home if it is elsewhere. The installer in step
@@ -505,7 +507,7 @@ a reboot).
 **Syslog.** The wrapper logs through `logger` (sys-apps/util-linux) to the syslog daemon.
 For example, `app-admin/sysklogd` (`rc-update add sysklogd default`) writes
 `/var/log/messages` *(verify on the host)*. When no syslog daemon is running, `/dev/log` is
-missing, and the wrapper writes `~weather/.cache/local-weather-awareness/cron.log` instead.
+missing, and the wrapper writes `~apache/.cache/local-weather-awareness/cron.log` instead.
 
 ### 2. Find the DocumentRoot
 
@@ -522,32 +524,34 @@ Any other directory works too; the snippet's `Alias` then publishes it as `/mywe
 
 ### 3. Run user
 
+Use the account that owns the web root. On a stock Gentoo Apache that is `apache`:
+
 ```bash
-useradd --system --create-home --shell /sbin/nologin weather
+ls -ld /var/www/localhost/htdocs     # drwxr-xr-x apache apache ... on tau.kirx.net
+getent passwd apache                 # home /var/www: the cache goes to /var/www/.cache/...
 ```
 
-Any existing unprivileged account works as well. No login shell is needed: cron runs the
-line with `/bin/sh`. The cache goes to `~weather/.cache/local-weather-awareness`.
+No login shell is needed: cron runs the line with `/bin/sh`. Running as `apache` means the
+generator and the web server share one identity. A dedicated account
+(`useradd --system --create-home --shell /sbin/nologin weather`) keeps them apart; the
+output directory then has to be handed to it first (see step 6).
 
 ### 4. Copy the repository
 
-On the host with git:
+Clone it as your own account (`kirx` on tau.kirx.net), not as root:
 
 ```bash
-git clone https://github.com/kirxkirx/local-weather-awareness.git /opt/local-weather-awareness
+su - kirx -c 'git clone https://github.com/kirxkirx/local-weather-awareness.git ~/local-weather-awareness'
+ls -ld /home/kirx     # apache must be able to enter it: drwxr-xr-x or drwx--x--x
+# if it is drwx------:  chmod 711 /home/kirx   (others may pass through, not list it)
 ```
 
-Or from a workstation with rsync, run from the top of your checkout. The remote directory
-must be writable by your account: create it once in a root shell on the host with
-`mkdir -p /opt/local-weather-awareness && chown <your account>: /opt/local-weather-awareness`
-(or, if the host has sudo, `ssh -t tau.kirx.net 'sudo mkdir -p /opt/local-weather-awareness
-&& sudo chown "$USER": /opt/local-weather-awareness'`: `-t` gives sudo a terminal for the
-password). Then:
+Or from a workstation with rsync, run from the top of your checkout:
 
 ```bash
 rsync -a --exclude out --exclude '.cache*' --exclude .pytest_cache --exclude __pycache__ \
       --exclude '*.env' --exclude '.nfs*' --exclude .git --exclude .private-patterns \
-      ./ tau.kirx.net:/opt/local-weather-awareness/
+      ./ tau.kirx.net:local-weather-awareness/     # as kirx: ~kirx/local-weather-awareness
 ```
 
 The excludes keep development output, caches and any local `*.env` override out of the
@@ -587,11 +591,11 @@ it here changes nothing until you uncomment a line.
 
 Set `WEATHER_OUT_DIR` and `WEATHER_CACHE_DIR` in `/etc/local-weather-awareness.env` only.
 The installer runs as root and hands those directories to the run user, so it refuses to
-take them from `~weather/local-weather-awareness.env`, a file the run user can change.
+take them from `~apache/local-weather-awareness.env`, a file the run user can change.
 
 How the cron wrapper reads the files:
 
-- It reads `/etc/local-weather-awareness.env`, then `~weather/local-weather-awareness.env`,
+- It reads `/etc/local-weather-awareness.env`, then `~apache/local-weather-awareness.env`,
   before every run; the later file wins.
 - The format is `KEY=value` lines and `#` comments. The files are parsed, never sourced.
   Blanks around the `=` and at the ends of the value are removed (`KEY = value` is
@@ -605,35 +609,35 @@ How the cron wrapper reads the files:
 ### 6. Install the cron job
 
 ```bash
-RUN_USER=weather /opt/local-weather-awareness/deploy/install-cron.sh
+RUN_USER=apache /home/kirx/local-weather-awareness/deploy/install-cron.sh
 # preview only, nothing changed, no root needed:
-#   DRY_RUN=1 RUN_USER=weather /opt/local-weather-awareness/deploy/install-cron.sh
+#   DRY_RUN=1 RUN_USER=apache /home/kirx/local-weather-awareness/deploy/install-cron.sh
 ```
 
-If the web root is not owned by root alone (on Gentoo, `htdocs` often belongs to another
-account or is group-writable; check with `ls -ld /var/www/localhost/htdocs`), the installer
-will not create the output directory as root, and stops with an error that names that
-parent. Create the directory yourself, hand it to the run user and rerun the installer:
+With `RUN_USER=apache` the installer creates the output directory as `apache`, which owns
+`htdocs`. With a dedicated run user it cannot: the installer never creates a directory as
+root inside a parent that root does not own alone, and it stops with an error that names
+that parent. Create the directory yourself, hand it to that user and rerun the installer:
 
 ```bash
 mkdir -p /var/www/localhost/htdocs/myweather
 chown weather:weather /var/www/localhost/htdocs/myweather
 chmod 0755 /var/www/localhost/htdocs/myweather
-RUN_USER=weather /opt/local-weather-awareness/deploy/install-cron.sh
+RUN_USER=weather /home/kirx/local-weather-awareness/deploy/install-cron.sh
 ```
 
-Always name `RUN_USER`. Without it the installer picks the sudo caller (your own account),
-else the owner of the checkout. It refuses root. It is idempotent: rerun it whenever you
+Always name `RUN_USER`. Without it the installer picks the sudo caller, else the owner of the
+checkout (`kirx` here), which cannot write the web root. It refuses root. It is idempotent: rerun it whenever you
 like. It:
 
 1. **Resolves the output directory**: the `OUT_DIR` argument or variable, else
    `WEATHER_OUT_DIR` from the env files, else `/var/www/localhost/htdocs/myweather` when
    `/var/www/localhost/htdocs` exists, else `/var/www/html/myweather`.
 2. **Resolves the cache directory**: `CACHE_DIR`, else `WEATHER_CACHE_DIR`, else
-   `~weather/.cache/local-weather-awareness`. It refuses an `OUT_DIR` or `CACHE_DIR` that
+   `~apache/.cache/local-weather-awareness`. It refuses an `OUT_DIR` or `CACHE_DIR` that
    contradicts an env file, and names that file: the wrapper loads the env files before
    every run, so they would win. It also refuses either path when it comes from an env file
-   that anybody but root can change (`~weather/local-weather-awareness.env` belongs to the
+   that anybody but root can change (`~apache/local-weather-awareness.env` belongs to the
    run user), and a `WEATHER_PYTHON` or `PATH` value the wrapper could not use
    (`PATH=$PATH:…` is not expanded in an env file).
 3. **Checks the run user's Python**, as that user and with cron's bare environment
@@ -648,7 +652,7 @@ like. It:
    - under a root-owned parent (`/var/www/localhost/htdocs/myweather`) root creates the
      directory; an existing one there is taken over only if it is the default output
      directory or already belongs to the run user;
-   - in space the run user controls (`~weather/.cache/local-weather-awareness`) the run user
+   - in space the run user controls (`~apache/.cache/local-weather-awareness`) the run user
      creates it itself, so no root action follows a path the run user could swap for a
      symlink.
 5. **Completes `/etc/local-weather-awareness.env`**: it appends the resolved
@@ -725,7 +729,7 @@ The snippet contains:
 ### 8. Verify
 
 ```bash
-crontab -u weather -l                       # the */5 line ending in "# local-weather-awareness"
+crontab -u apache -l                        # the */5 line ending in "# local-weather-awareness"
 rc-service cronie status                    # started
 # the runs' log lines (wherever your syslog writes):
 grep local-weather-awareness /var/log/messages | tail -n 20
@@ -741,8 +745,8 @@ by hand with the output on the terminal (an env file that sets `WEATHER_LOG` win
 `-`):
 
 ```bash
-su -s /bin/sh weather \
-   -c 'WEATHER_LOG=- /opt/local-weather-awareness/deploy/local-weather-awareness-cron.sh'
+su -s /bin/sh apache \
+   -c 'WEATHER_LOG=- /home/kirx/local-weather-awareness/deploy/local-weather-awareness-cron.sh'
 ```
 
 `status.json` is a small health summary for monitoring:
@@ -766,28 +770,27 @@ except when no site's map reaches the MRMS grid: the radar is then `"not applica
 ### Updating
 
 ```bash
-git -C /opt/local-weather-awareness pull   # or the rsync from step 4
+su - kirx -c 'git -C ~/local-weather-awareness pull'   # or the rsync from step 4
 ```
 
 There is nothing to restart: the next cron run, within 5 minutes, uses the new code. When
 anything under `deploy/` changed, rerun
-`RUN_USER=weather /opt/local-weather-awareness/deploy/install-cron.sh`. It only changes
+`RUN_USER=apache /home/kirx/local-weather-awareness/deploy/install-cron.sh`. It only changes
 what differs. If the Apache snippet changed, copy it again and reload Apache.
 
 ### Uninstall
 
 ```bash
-crontab -u weather -l | grep -v '# local-weather-awareness$' | crontab -u weather -
+crontab -u apache -l | grep -v '# local-weather-awareness$' | crontab -u apache -
 rm -f /etc/apache2/vhosts.d/local-weather-awareness.conf && rc-service apache2 reload
-rm -rf /etc/local-weather-awareness /etc/local-weather-awareness.env /opt/local-weather-awareness
+rm -rf /etc/local-weather-awareness /etc/local-weather-awareness.env /home/kirx/local-weather-awareness
 rm -rf /var/www/localhost/htdocs/myweather
-rm -rf ~weather/.cache/local-weather-awareness ~weather/local-weather-awareness.env
-userdel -r weather                       # only if the account was created for this
+rm -rf ~apache/.cache/local-weather-awareness ~apache/local-weather-awareness.env
 # only if nothing else needs these Pillow flags:
 rm -f /etc/portage/package.use/local-weather-awareness
 ```
 
-`crontab -u weather -r` removes the user's whole crontab instead of just the
+`crontab -u apache -r` removes the user's whole crontab instead of just the
 local-weather-awareness line.
 
 ### Troubleshooting
@@ -795,7 +798,7 @@ local-weather-awareness line.
 - **No log lines 5 minutes after the install.**
   - Is cron running (`rc-service cronie status`), and is it in the default runlevel
     (`rc-update show default`)?
-  - cronie logs every job start to syslog as `CROND[…]: (weather) CMD (…)`.
+  - cronie logs every job start to syslog as `CROND[…]: (apache) CMD (…)`.
   - If `/etc/cron.allow` exists, the run user must be listed in it.
 
   *(verify on the host)*
@@ -803,7 +806,7 @@ local-weather-awareness line.
   `/usr/bin:/bin`, and Pillow must be built for that `python3` (see [Packages](#1-packages)).
   Set `WEATHER_PYTHON` (and `PATH` if needed) in `/etc/local-weather-awareness.env`.
 - **Nothing in `/var/log/messages`.** No syslog daemon is running (`/dev/log` is missing).
-  The wrapper then writes `~weather/.cache/local-weather-awareness/cron.log` instead.
+  The wrapper then writes `~apache/.cache/local-weather-awareness/cron.log` instead.
   `WEATHER_LOG=/path/file` forces a log file.
 - **`generator stopped by the timeout after 600 s (exit status 124)`.** A run hung beyond
   its network budget (`WEATHER_RUN_BUDGET`, 240 s). The next run starts fresh.
