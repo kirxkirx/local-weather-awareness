@@ -345,7 +345,7 @@ class Config:
     # page
     title: str = ""                 # empty: derived from the site names (page_title)
     page_url: str = ""              # the page's public address for the footer; empty: none
-    refresh_seconds: int = 300
+    refresh_seconds: int = 90       # browser reload; the page is regenerated every 2 min
     units: str = "us"               # "us" (°F/mph primary) or "metric"
     hourly_hours: int = 24
     forecast_periods: int = 14
@@ -360,8 +360,9 @@ class Config:
     http_retries: int = 2
     # Wall-clock budget for one run's network traffic: once it is spent, every further fetch
     # fails at once and the page is built from last-good copies (see weather.http.begin_run),
-    # so a hanging upstream cannot stretch a run past the 5-minute run interval.
-    run_budget_s: int = 240
+    # so a hanging upstream cannot stretch a run past the 2-minute run interval (a cold first
+    # run with basemap tile downloads takes about 30-50 s).
+    run_budget_s: int = 90
 
     # NWS caching (seconds): ttl = re-fetch after; max_stale = keep using last-good until
     points_ttl: int = 7 * 86400

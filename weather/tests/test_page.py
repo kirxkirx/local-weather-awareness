@@ -1620,7 +1620,7 @@ def test_page_url_is_shown_only_when_set(cfg, run):
     assert cfg.page_url == ""
     foot = page.render_html(cfg, run).split("<h2>Sources</h2>", 1)[1]
     last = foot[foot.rindex('<p class="foot">'):]
-    assert "<br>generated 2026-09-23 16:12:00 UTC · refreshes every 300 s</p>" in last
+    assert "<br>generated 2026-09-23 16:12:00 UTC · refreshes every 90 s</p>" in last
     assert "tau.kirx.net" not in foot and "href=\"https://example" not in foot
     cfg.page_url = "https://wx.example.org/myweather/"
     foot = page.render_html(cfg, run).split("<h2>Sources</h2>", 1)[1]

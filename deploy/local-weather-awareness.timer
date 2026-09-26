@@ -1,18 +1,19 @@
-# Runs local-weather-awareness.service every 5 minutes (matches the page's <meta refresh> and
-# the forecast/observation cache TTLs; MRMS publishes a new frame every 2 min).
+# Runs local-weather-awareness.service every 2 minutes, matching the MRMS radar cadence (a new
+# frame every 2 min). Forecasts and observations are cached, so most runs only fetch the new
+# radar frame and the alert feed.
 # No placeholders: deploy/install.sh copies this file to /etc/systemd/system/ as is.
 [Unit]
-Description=Regenerate the local-weather-awareness page every 5 minutes
+Description=Regenerate the local-weather-awareness page every 2 minutes
 
 [Timer]
 Unit=local-weather-awareness.service
 # First run 2 min after boot (network-online has usually settled by then)...
 OnBootSec=2min
-# ...then 5 min after each activation of the service. Measured from the START of the last
+# ...then 2 min after each activation of the service. Measured from the START of the last
 # run, so a slow run shifts the schedule but never overlaps (a run lock guards the rest).
-OnUnitActiveSec=5min
-# Spread the load on the upstream APIs (and on the host) by up to 30 s.
-RandomizedDelaySec=30
+OnUnitActiveSec=2min
+# Spread the load on the upstream APIs (and on the host) by up to 15 s.
+RandomizedDelaySec=15
 # Only meaningful for OnCalendar= timers; harmless here and ready for a switch to one.
 Persistent=true
 

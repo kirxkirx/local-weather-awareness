@@ -1,6 +1,6 @@
 #!/bin/bash
 # Install local-weather-awareness as a cron job. No systemd needed: tau.kirx.net runs Gentoo
-# with OpenRC. Every 5 minutes cron runs deploy/local-weather-awareness-cron.sh as an
+# with OpenRC. Every 2 minutes cron runs deploy/local-weather-awareness-cron.sh as an
 # unprivileged user; it regenerates the static page into OUT_DIR, which Apache serves as
 # https://<host>/myweather/ (https://tau.kirx.net/myweather/ in the example deployment). (On
 # a systemd host deploy/install.sh does the same with a service + timer; use one or the
@@ -30,7 +30,7 @@
 #   3. make /etc/local-weather-awareness.env set WEATHER_OUT_DIR and WEATHER_CACHE_DIR: the
 #      resolved values are appended when missing, no other line is ever rewritten; mode
 #      0644, because the cron job reads it as RUN_USER;
-#   4. put "*/5 * * * * <repo>/deploy/local-weather-awareness-cron.sh # local-weather-awareness"
+#   4. put "*/2 * * * * <repo>/deploy/local-weather-awareness-cron.sh # local-weather-awareness"
 #      into RUN_USER's crontab, replacing an older local-weather-awareness line and keeping
 #      every other line;
 #   5. check that a cron daemon is running (prints the Gentoo fix when none is);
@@ -208,7 +208,7 @@ case "$PY" in
         die "$(env_source WEATHER_PYTHON) sets WEATHER_PYTHON=$PY: give an interpreter name
        or absolute path (letters, digits and . _ / + - only), e.g. WEATHER_PYTHON=python3.12" ;;
 esac
-CRON_LINE="*/5 * * * * $WRAPPER $CRON_TAG"
+CRON_LINE="*/2 * * * * $WRAPPER $CRON_TAG"
 
 case "$OUT_DIR" in
     /var/www/html/*)
@@ -536,7 +536,7 @@ ENV_LOG="$(env_lookup WEATHER_LOG)"
 [ -z "$ENV_LOG" ] || LOGS="$ENV_LOG (WEATHER_LOG from an env file)"
 cat <<MSG
 
-Done. cron runs $WRAPPER every 5 minutes as $RUN_USER;
+Done. cron runs $WRAPPER every 2 minutes as $RUN_USER;
 it regenerates $OUT_DIR.
   crontab:  crontab -u $RUN_USER -l
   logs:     $LOGS

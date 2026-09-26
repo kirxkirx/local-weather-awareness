@@ -885,7 +885,7 @@ PAGE_JS (progressive enhancement):
  "ok": page_written and not degraded,       # the flag to alert on (with the age of generated)
  "problems": [str],                         # short: "radar: stale", "socorro light map: not
                                             # written", "network: api.weather.gov unreachable",
-                                            # "network: run budget of 240 s used up",
+                                            # "network: run budget of 90 s used up",
                                             # "N error(s) logged in this run"
  "alerts": {"ok", "stale", "count"},
  "radar": {"ok", "stale", "ts"}|"not applicable",   # no site's map in the MRMS grid

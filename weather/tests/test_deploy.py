@@ -23,7 +23,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 DEPLOY = os.path.join(ROOT, "deploy")
 WRAPPER = os.path.join(DEPLOY, "local-weather-awareness-cron.sh")
 CRON_INSTALLER = os.path.join(DEPLOY, "install-cron.sh")
-CRON_LINE = "*/5 * * * * %s # local-weather-awareness" % WRAPPER
+CRON_LINE = "*/2 * * * * %s # local-weather-awareness" % WRAPPER
 GENTOO_CRON_FIX = ("emerge --ask sys-process/cronie && rc-update add cronie default"
                    " && rc-service cronie start")
 IS_ROOT = os.geteuid() == 0
@@ -156,8 +156,8 @@ def test_timer_unit_shape():
     u = _unit(_read("deploy", "local-weather-awareness.timer"))
     t = u["Timer"]
     assert t["OnBootSec"] == ["2min"]
-    assert t["OnUnitActiveSec"] == ["5min"]
-    assert t["RandomizedDelaySec"] == ["30"]
+    assert t["OnUnitActiveSec"] == ["2min"]
+    assert t["RandomizedDelaySec"] == ["15"]
     assert t["Persistent"] == ["true"]
     assert t["Unit"] == ["local-weather-awareness.service"]
     assert u["Install"]["WantedBy"] == ["timers.target"]
@@ -272,7 +272,7 @@ def test_apache_snippet_shape():
     assert "Require all granted" in conf and "DirectoryIndex index.html" in conf
     assert re.search(r'<FilesMatch "\^\(index\\\.html\|status\\\.json\)\$">\s*'
                      r'Header set Cache-Control "max-age=60"', conf)
-    assert re.search(r'<FilesMatch "\\\.png\$">\s*Header set Cache-Control "max-age=120"', conf)
+    assert re.search(r'<FilesMatch "\\\.png\$">\s*Header set Cache-Control "max-age=60"', conf)
     assert "mod_headers" in conf and "DocumentRoot" in conf
     # every opened block is closed (comments mention the tags too, so strip them first)
     code = "\n".join(ln for ln in conf.splitlines() if not ln.lstrip().startswith("#"))

@@ -1390,7 +1390,7 @@ def test_parse_sites_optional_time_zone_field():
 
 def test_config_budget_colours_and_alpha_defaults(cfg, monkeypatch):
     c = Config.from_env()                       # the cfg fixture cleared WEATHER_*
-    assert c.run_budget_s == 240 and c.alert_colors == "" and c.alert_color_overrides == {}
+    assert c.run_budget_s == 90 and c.alert_colors == "" and c.alert_color_overrides == {}
     assert c.alert_fill_alpha == 55 and c.radar_alpha == 170
     monkeypatch.setenv("WEATHER_RUN_BUDGET", "120")
     monkeypatch.setenv("WEATHER_ALERT_COLORS",

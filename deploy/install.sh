@@ -1,5 +1,5 @@
 #!/bin/bash
-# Install local-weather-awareness under systemd: a oneshot service + a 5-minute timer that
+# Install local-weather-awareness under systemd: a oneshot service + a 2-minute timer that
 # regenerate the static page into OUT_DIR, which Apache serves as https://<host>/myweather/.
 # (The example deployment, tau.kirx.net, has no systemd and uses deploy/install-cron.sh.)
 #
@@ -357,7 +357,7 @@ fi
 snippet="$ETC_DIR/apache-local-weather-awareness.conf"
 cat <<MSG
 
-Done. The timer regenerates $OUT_DIR every 5 minutes.
+Done. The timer regenerates $OUT_DIR every 2 minutes.
   timers:   systemctl list-timers 'local-weather-awareness*'
   logs:     journalctl -u local-weather-awareness -n 50
             (follow: journalctl -u local-weather-awareness -f)

@@ -24,7 +24,7 @@ local weather situation awareness pages.**
   client and the deploy layout. Every Raspberry-Pi sensor, camera, GPS/NTP,
   Weather-Underground and safety-monitor piece was removed.
 
-A Python 3.9+ script (standard library + Pillow) runs every 5 minutes. It fetches public
+A Python 3.9+ script (standard library + Pillow) runs every 2 minutes, the MRMS radar cadence. It fetches public
 NOAA data, renders one radar map per site and theme, and writes a single self-contained
 `index.html`, which a web server serves as plain files. On the example host, tau.kirx.net
 (Gentoo Linux with OpenRC, no systemd), cron runs the script and Apache serves the page (see
@@ -82,7 +82,7 @@ Page-wide:
   official product, not the only source for safety decisions) and the page's address when
   `WEATHER_PAGE_URL` is set.
 
-The page reloads itself every 5 minutes (`WEATHER_REFRESH_SECONDS`) with a little JavaScript
+The page reloads itself every 90 seconds (`WEATHER_REFRESH_SECONDS`) with a little JavaScript
 that keeps open sections and the scroll position. Without JavaScript, a `<noscript>` meta
 refresh does the reload. The only external assets are the NWS forecast icons. Units: °F and
 mph primary, °C and km/h in small print (`WEATHER_UNITS`).
@@ -243,7 +243,7 @@ as the OSM attribution guidelines ask for on web pages.
 
 - **NOAA / National Weather Service** (api.weather.gov): US government data, public domain.
   Keep the `User-Agent` and the request rate modest (with the five example sites this page
-  makes at most ~20 requests per 5-minute run, most of them served from the local cache;
+  makes at most ~20 requests per 2-minute run, most of them served from the local cache;
   each site adds up to 4).
 - **NMDOT / NMRoads.com** road information: the feed declares itself public domain
   ([CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/)), publisher NMDOT. The page
@@ -300,13 +300,13 @@ deploy/
                                        unit + timer
   local-weather-awareness.service      oneshot generator (template; placeholders filled by
                                        install.sh)
-  local-weather-awareness.timer        every 5 min, jittered
+  local-weather-awareness.timer        every 2 min, jittered
   apache-local-weather-awareness.conf  Alias /myweather → output dir, no listings or foreign
                                        symlinks, short Cache-Control
 weather.env.example        every WEATHER_* variable with its default
 sites.example              the example deployment's sites as a WEATHER_SITES_FILE, format explained
 tools/state_bboxes.py      regenerates weather/states.py's tables from the Census and NWS shapefiles
-run_local.sh               local preview: regenerate every 5 min and serve ./out on port 8080
+run_local.sh               local preview: regenerate every 2 min and serve ./out on port 8080
 DESIGN.md                  module contract (signatures and dict shapes)
 PLAN.md                    the original plan and the decisions taken
 ROAD_CLOSURES.md           research memo on road-closure data sources
@@ -343,7 +343,7 @@ Later runs take seconds.
 ### Local preview (`run_local.sh`)
 
 `run_local.sh` works like the production cron job and Apache together. It regenerates the
-page every 5 minutes in a background loop and serves it with Python's built-in HTTP server:
+page every 2 minutes in a background loop and serves it with Python's built-in HTTP server:
 
 ```bash
 ./run_local.sh                  # port 8080, output ./out, cache ./.cache-dev
@@ -352,7 +352,7 @@ BIND=127.0.0.1 ./run_local.sh   # reachable from this machine only
 ```
 
 - Arguments: `[port] [out_dir]`, defaults `8080` and `./out`.
-- `INTERVAL`: seconds between runs (default 300). The first run starts at once.
+- `INTERVAL`: seconds between runs (default 120). The first run starts at once.
 - `BIND`: listen address (default `0.0.0.0`, every interface), so the page also opens from
   other machines as `http://<host>:8080/`.
 - Any `WEATHER_*` variable is passed to the generator. The cache is `./.cache-dev` unless
@@ -428,7 +428,7 @@ write the output directory without any hand-over. `deploy/install-cron.sh` puts 
 into `apache`'s crontab:
 
 ```
-*/5 * * * * /home/kirx/local-weather-awareness/deploy/local-weather-awareness-cron.sh # local-weather-awareness
+*/2 * * * * /home/kirx/local-weather-awareness/deploy/local-weather-awareness-cron.sh # local-weather-awareness
 ```
 
 Apache then serves the output directory as https://tau.kirx.net/myweather/. The same steps
@@ -751,7 +751,7 @@ The snippet contains:
 ### 8. Verify
 
 ```bash
-crontab -u apache -l                        # the */5 line ending in "# local-weather-awareness"
+crontab -u apache -l                        # the */2 line ending in "# local-weather-awareness"
 rc-service cronie status                    # started
 # the runs' log lines (wherever your syslog writes):
 grep local-weather-awareness /var/log/messages | tail -n 20
@@ -795,7 +795,7 @@ except when no site's map reaches the MRMS grid: the radar is then `"not applica
 su - kirx -c 'git -C ~/local-weather-awareness pull'   # or the rsync from step 4
 ```
 
-There is nothing to restart: the next cron run, within 5 minutes, uses the new code. When
+There is nothing to restart: the next cron run, within 2 minutes, uses the new code. When
 anything under `deploy/` changed, rerun
 `RUN_USER=apache /home/kirx/local-weather-awareness/deploy/install-cron.sh`. It only changes
 what differs. If the Apache snippet changed, copy it again and reload Apache.
@@ -817,7 +817,7 @@ local-weather-awareness line.
 
 ### Troubleshooting
 
-- **No log lines 5 minutes after the install.**
+- **No log lines a few minutes after the install.**
   - Is cron running (`rc-service cronie status`), and is it in the default runlevel
     (`rc-update show default`)?
   - cronie logs every job start to syslog as `CROND[…]: (apache) CMD (…)`.
@@ -831,7 +831,7 @@ local-weather-awareness line.
   The wrapper then writes `~apache/.cache/local-weather-awareness/cron.log` instead.
   `WEATHER_LOG=/path/file` forces a log file.
 - **`generator stopped by the timeout after 600 s (exit status 124)`.** A run hung beyond
-  its network budget (`WEATHER_RUN_BUDGET`, 240 s). The next run starts fresh.
+  its network budget (`WEATHER_RUN_BUDGET`, 90 s). The next run starts fresh.
 - **Apache 403.** The output directory must be readable by the Apache user (0755, files
   0644; the wrapper sets umask 022). Check that the snippet is loaded (`configtest`, and
   `grep -rn myweather /etc/apache2/vhosts.d/`).
@@ -856,7 +856,7 @@ local-weather-awareness line.
 - **Many sources labelled STALE at once.** Look in the log for
   `<host> unreachable (…): skipping it for the rest of this run`: that host timed out or
   refused connections after its retries, so the rest of that run skipped it and used last
-  good copies. `run budget of 240 s exhausted: skipping all further network requests` means
+  good copies. `run budget of 90 s exhausted: skipping all further network requests` means
   the run's network time (`WEATHER_RUN_BUDGET`) was used up. Both reset with the next run.
   `status.json` lists them under `problems` as `network: …`.
 - **"NMDOT road feed unavailable" in a road block.** nmroads.com did not answer and the
@@ -870,7 +870,7 @@ local-weather-awareness line.
 ## Other hosts: systemd
 
 On a host with systemd (Debian, Ubuntu, RHEL, Alma, Rocky), `deploy/install.sh` installs a
-oneshot service and a 5-minute timer instead of the crontab line. Use one or the other, not
+oneshot service and a 2-minute timer instead of the crontab line. Use one or the other, not
 both. `install.sh` stops on a host without `systemctl` and points to `install-cron.sh`.
 
 1. **Packages.**
@@ -963,7 +963,7 @@ win over both. Durations are in seconds. The cron wrapper's own variables (`WEAT
 | `WEATHER_LOCK_FILE` | `<cache>/run.lock` | single-instance lock |
 | `WEATHER_TITLE` | unset: derived from the site names, e.g. `Local weather: Lubbock · Clovis · Fort Sumner · Socorro · Albuquerque` | page title (`<title>` and masthead); the derived one lists the names up to their first comma, "+N more" beyond 80 characters |
 | `WEATHER_PAGE_URL` | empty: no address shown | the page's public address, shown (and linked when it is `https://`) in the footer and printed by the installers, e.g. `https://tau.kirx.net/myweather/` for the example deployment |
-| `WEATHER_REFRESH_SECONDS` | `300` | page auto-reload interval (min 30): JavaScript reload that keeps open sections and scroll position, `<noscript>` meta refresh as fallback |
+| `WEATHER_REFRESH_SECONDS` | `90` | page auto-reload interval (min 30): JavaScript reload that keeps open sections and scroll position, `<noscript>` meta refresh as fallback |
 | `WEATHER_UNITS` | `us` | `us` = °F/mph primary; `metric` = °C/km/h primary |
 | `WEATHER_HOURLY_HOURS` | `24` | rows in the hourly table |
 | `WEATHER_FORECAST_PERIODS` | `14` | day/night periods shown (NWS returns 14) |
@@ -972,7 +972,7 @@ win over both. Durations are in seconds. The cron wrapper's own variables (`WEAT
 | `WEATHER_USER_AGENT` | `local-weather-awareness (+https://github.com/kirxkirx/local-weather-awareness)` | sent with every request; required by NWS, which asks for a contact in it: add your e-mail address after the URL, separated by a semicolon (see [step 5](#5-configuration-etclocal-weather-awarenessenv)). **It must be a real address**: with a placeholder such as `you@example.org` OpenStreetMap blocks every tile request and the generator refuses to start |
 | `WEATHER_HTTP_TIMEOUT` | `25` | per-request timeout |
 | `WEATHER_HTTP_RETRIES` | `2` | retries on network errors / 5xx / 429 |
-| `WEATHER_RUN_BUDGET` | `240` | network time budget per run (min 10); then every further fetch is skipped and last-good copies are used (see [Operational notes](#operational-notes)) |
+| `WEATHER_RUN_BUDGET` | `90` | network time budget per run (min 10); then every further fetch is skipped and last-good copies are used (see [Operational notes](#operational-notes)) |
 | `WEATHER_POINTS_TTL` | `604800` | re-fetch `/points` metadata after (7 d) |
 | `WEATHER_FORECAST_TTL` / `_MAX_STALE` | `1800` / `7200` | 7-day forecast: re-fetch after / keep last good until |
 | `WEATHER_HOURLY_TTL` / `_MAX_STALE` | `1800` / `7200` | hourly forecast, same |
@@ -1365,14 +1365,14 @@ blocks, and maps as before.
   in all these cases, so cron (or the timer) keeps going. It exits non-zero only for a
   configuration error or an unwritable output or cache directory.
 - **Network budget and circuit breaker.** A run's network traffic gets `WEATHER_RUN_BUDGET`
-  seconds (default 240). Every request's timeout is capped by what is left, never below 3 s.
+  seconds (default 90). Every request's timeout is capped by what is left, never below 3 s.
   Once the budget is spent, every further request is skipped without touching the network,
   and each source serves its last good copy, labelled stale. A host that times out, refuses
   or resets connections, or sends a truncated response after its retries is marked down.
   Requests to it are then skipped for the rest of that run, so one dead API costs one
   timeout, not one per URL. HTTP error answers (4xx/5xx) never mark a host down. The journal
   says so once per cause: `<host> unreachable (…): skipping it for the rest of this run` or
-  `run budget of 240 s exhausted: skipping all further network requests`. `status.json` has
+  `run budget of 90 s exhausted: skipping all further network requests`. `status.json` has
   the same under `network` and `problems`. The next run starts fresh.
 - Output files are written atomically (temp file, flushed and fsynced, then `os.replace`),
   so Apache never serves a half-written or, after a crash, empty page. A `flock` on
@@ -1384,7 +1384,7 @@ blocks, and maps as before.
   (~10 KB). Basemap tiles are fetched once per map.
 - **Cron (tau.kirx.net).** `deploy/local-weather-awareness-cron.sh` runs the generator as an
   unprivileged user (it refuses root) with `nice -n 10`, umask 022 and `timeout 600`, which
-  kills a wedged run while leaving ample room for the 240 s network budget plus a few
+  kills a wedged run while leaving ample room for the 90 s network budget plus a few
   seconds of rendering. Keep `WEATHER_RUN_BUDGET` well below `WEATHER_TIMEOUT`. It reads
   the env files without evaluating them. Logs go to syslog
   (`logger -t local-weather-awareness`) or to `<cache>/cron.log`, which is rotated at 1 MB.

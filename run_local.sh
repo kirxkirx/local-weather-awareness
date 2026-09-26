@@ -3,7 +3,7 @@
 # the output directory with Python's built-in HTTP server. Ctrl-C (or SIGTERM/SIGHUP) stops
 # both, including a generator run that is in progress.
 # Usage:  ./run_local.sh [port] [out_dir]        (defaults: 8080, ./out)
-# Env:    INTERVAL=300        seconds between generator runs
+# Env:    INTERVAL=120        seconds between generator runs
 #         BIND=0.0.0.0        address the preview server listens on (0.0.0.0 = every
 #                             interface, so the page can be opened from other machines;
 #                             BIND=127.0.0.1 keeps it on this machine)
@@ -14,7 +14,7 @@ cd "$(dirname "$0")" || exit 1
 
 PORT="${1:-8080}"
 OUT="${2:-./out}"
-INTERVAL="${INTERVAL:-300}"
+INTERVAL="${INTERVAL:-120}"
 BIND="${BIND:-0.0.0.0}"
 export WEATHER_OUT_DIR="$OUT"
 export WEATHER_CACHE_DIR="${WEATHER_CACHE_DIR:-./.cache-dev}"

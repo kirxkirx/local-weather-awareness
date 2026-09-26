@@ -1,6 +1,6 @@
 # local-weather-awareness page generator: ONE run = fetch alerts/radar/forecasts, render the
 # maps, write index.html + status.json into the output directory.
-# local-weather-awareness.timer starts it every 5 minutes; nothing stays resident between runs.
+# local-weather-awareness.timer starts it every 2 minutes; nothing stays resident between runs.
 #
 # Template file: deploy/install.sh fills in the placeholders (repo path, run user and
 # group, home, output and cache dirs) and installs
@@ -42,7 +42,7 @@ ExecStart=/usr/bin/python3 __REPO__/make_weather_page.py
 
 # A oneshot has no start timeout by default; a wedged run must never block the timer for
 # good. A normal run takes well under a minute. Its network time is capped by
-# WEATHER_RUN_BUDGET (default 240 s; after that every fetch is skipped and last-good copies
+# WEATHER_RUN_BUDGET (default 90 s; after that every fetch is skipped and last-good copies
 # are used), and rendering the maps (two per site) takes seconds, so 10 min leaves a wide
 # margin. Keep WEATHER_RUN_BUDGET well below this value if you raise it.
 TimeoutStartSec=10min
