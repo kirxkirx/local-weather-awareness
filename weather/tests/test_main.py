@@ -1369,9 +1369,7 @@ def test_main_exits_2_on_a_bad_road_setting(cfg, fake_http, monkeypatch):
 # ---- config fields used by the run -----------------------------------------------------------------
 def test_default_sites_carry_static_time_zones():
     tzs = {s["slug"]: s["tz"] for s in config.DEFAULT_SITES}
-    assert tzs == {"lubbock": "America/Chicago", "clovis": "America/Denver",
-                   "fort_sumner": "America/Denver", "socorro": "America/Denver",
-                   "albuquerque": "America/Denver"}
+    assert tzs == {"socorro": "America/Denver", "albuquerque": "America/Denver"}
     if ZoneInfo is not None:
         for tz in tzs.values():
             ZoneInfo(tz)

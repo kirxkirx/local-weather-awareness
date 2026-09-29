@@ -40,17 +40,11 @@ except ImportError:                 # pragma: no cover - Python < 3.9 is not sup
 # ---- sites -------------------------------------------------------------------
 # The EXAMPLE DEPLOYMENT's configuration (https://tau.kirx.net/myweather/): used only when
 # neither --sites, WEATHER_SITES nor WEATHER_SITES_FILE names the sites (sites.example is the
-# same list as a sites file). Nothing outside this table may depend on these five sites.
+# same list as a sites file). Nothing outside this table may depend on these sites.
 # slug: file/anchor-safe id; name: display; lat/lon: WGS84 decimal degrees (town centres,
 # adjust to the actual site of interest if needed); tz: IANA time zone, used for local times
 # whenever the NWS /points metadata (which normally supplies it) is unavailable.
 DEFAULT_SITES = [
-    {"slug": "lubbock", "name": "Lubbock, TX", "lat": 33.5779, "lon": -101.8552,
-     "tz": "America/Chicago"},
-    {"slug": "clovis", "name": "Clovis, NM", "lat": 34.4048, "lon": -103.2052,
-     "tz": "America/Denver"},
-    {"slug": "fort_sumner", "name": "Fort Sumner, NM", "lat": 34.4717, "lon": -104.2456,
-     "tz": "America/Denver"},
     {"slug": "socorro", "name": "Socorro, NM", "lat": 34.0584, "lon": -106.8914,
      "tz": "America/Denver"},
     {"slug": "albuquerque", "name": "Albuquerque, NM", "lat": 35.0844, "lon": -106.6504,

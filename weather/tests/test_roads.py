@@ -16,7 +16,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from weather import geo, http, roads, util
-from weather.config import DEFAULT_SITES
+from weather.tests.conftest import TEST_SITES
 
 JSON_URL = "https://nmroads.com/nmroads.json"
 RSS_URL = "https://nmroads.com/rss.xml"
@@ -72,7 +72,7 @@ def ids(events):
 
 
 def frame_for(cfg, slug):
-    s = next(x for x in DEFAULT_SITES if x["slug"] == slug)
+    s = next(x for x in TEST_SITES if x["slug"] == slug)
     return geo.MapFrame(s["lat"], s["lon"], cfg.map_km, cfg.map_px, cfg.tile_zoom)
 
 
@@ -577,7 +577,7 @@ def test_storm_report_road_filter(remark, keep):
 def test_site_roads_per_map(cfg, cache, feeds, now):
     nm = roads.fetch_nm_roads(cfg, cache)
     lsr = roads.fetch_storm_reports(cfg, cache)
-    view = {s["slug"]: roads.site_roads(nm, lsr, frame_for(cfg, s["slug"])) for s in DEFAULT_SITES}
+    view = {s["slug"]: roads.site_roads(nm, lsr, frame_for(cfg, s["slug"])) for s in TEST_SITES}
     assert view["lubbock"] == {"covers_nm": False, "events": [], "reports": []}
     assert all(view[s]["covers_nm"] for s in ("clovis", "fort_sumner", "socorro", "albuquerque"))
     assert ids(view["clovis"]["events"]) == [NM252_WATER]

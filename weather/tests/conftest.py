@@ -14,6 +14,21 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 from weather import http as _http          # noqa: E402
 from weather.config import Config         # noqa: E402
 
+# The tests exercise a Texas + New Mexico layout (a site outside NM, sites on both sides of
+# the state line); they pin this list rather than follow the deployment's DEFAULT_SITES.
+TEST_SITES = [
+    {"slug": "lubbock", "name": "Lubbock, TX", "lat": 33.5779, "lon": -101.8552,
+     "tz": "America/Chicago"},
+    {"slug": "clovis", "name": "Clovis, NM", "lat": 34.4048, "lon": -103.2052,
+     "tz": "America/Denver"},
+    {"slug": "fort_sumner", "name": "Fort Sumner, NM", "lat": 34.4717, "lon": -104.2456,
+     "tz": "America/Denver"},
+    {"slug": "socorro", "name": "Socorro, NM", "lat": 34.0584, "lon": -106.8914,
+     "tz": "America/Denver"},
+    {"slug": "albuquerque", "name": "Albuquerque, NM", "lat": 35.0844, "lon": -106.6504,
+     "tz": "America/Denver"},
+]
+
 
 class FakeHttp:
     """Registry of URL fragment -> response. ``add(fragment, body)`` where body is bytes,
@@ -116,7 +131,7 @@ def cfg(tmp_path, monkeypatch):
         if k.startswith("WEATHER_"):
             monkeypatch.delenv(k, raising=False)
     return Config.from_env(out_dir=str(tmp_path / "out"), cache_dir=str(tmp_path / "cache"),
-                           map_px=240, tile_zoom=8)
+                           map_px=240, tile_zoom=8, sites=[dict(s) for s in TEST_SITES])
 
 
 @pytest.fixture

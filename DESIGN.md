@@ -32,7 +32,7 @@ get_bytes` — the test fixture `fake_http` monkeypatches those attributes, and
   lines skipped, UTF-8 with an optional BOM, `~` expanded; ValueError naming the file and
   line for an unreadable file, a malformed line, a line with `;`, a slug repeated in any
   case or no sites: never a silent fall-back) > `DEFAULT_SITES`, **the example deployment's
-  configuration** (Lubbock `America/Chicago`, four NM sites `America/Denver`; the same list
+  configuration** (Socorro and Albuquerque, both `America/Denver`; the same list
   as `sites.example`). `cfg.sites_source` names the source for the run log. Title:
   `cfg.title` default "" and `cfg.page_title` = `WEATHER_TITLE` when set, else
   `default_title(sites)`: "Local weather: " + the names up to their first comma joined

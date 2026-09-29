@@ -3,8 +3,8 @@
 **This repository is a test of how public weather data can be used to create personalized
 local weather situation awareness pages.**
 
-- **Example.** An example is deployed at https://tau.kirx.net/myweather/. It covers five
-  sites in New Mexico and West Texas: radar, NWS alerts, forecasts, sun times and, for New
+- **Example.** An example is deployed at https://tau.kirx.net/myweather/. It covers two
+  sites in New Mexico, Socorro and Albuquerque: radar, NWS alerts, forecasts, sun times and, for New
   Mexico, road closures caused by emergencies such as flooding. The sites are
   configuration: any places in the US work (see [Sites](#sites)).
 - **Not an official product.** This page is not from, or endorsed by, NOAA, the National
@@ -54,7 +54,7 @@ Per site, top to bottom:
   washouts, slides, fire, crashes, hazardous materials, snow and ice, wind and dust, storm
   damage or law enforcement, water on the road, and recent NWS storm reports of closed or
   flooded roads, each dated. Roadwork is left out. A map outside New Mexico says so in one
-  line (in the example deployment, Lubbock's); when no site's map reaches New Mexico, the
+  line; when no site's map reaches New Mexico, the
   block is not shown at all (see [How road closures are shown](#how-road-closures-are-shown)).
 - **Sun & twilight** (pure-Python NOAA equations), in the site's time zone, which the
   heading names: "Sun now <altitude>° (<phase>)", where the phase is day, civil, nautical or
@@ -68,7 +68,7 @@ Per site, top to bottom:
 Page-wide:
 
 - A masthead with the page title, the generation time and a day/night toggle. The title is
-  made from the site names ("Local weather: Lubbock · Clovis · …", see
+  made from the site names ("Local weather: Socorro · Albuquerque" in the example deployment, see
   [Sites](#sites)) unless `WEATHER_TITLE` sets one. The clock shows the first site's time
   zone, and the palette follows the sun at the first site (night below −6°); a viewer's
   choice holds until that default next changes.
@@ -90,7 +90,7 @@ mph primary, °C and km/h in small print (`WEATHER_UNITS`).
 ## Sites
 
 The site list is configuration: a deployment for other places changes its settings, never
-the code. The five sites below are the **example deployment's configuration**
+the code. The sites below are the **example deployment's configuration**
 (tau.kirx.net). They are also the built-in list the generator uses when no other is
 configured, and `sites.example` holds the same list as a sites file.
 
@@ -103,15 +103,14 @@ sun row and map captions never fall back to UTC.
 
 | # | Site | Lat, Lon | NWS grid | Time zone | Nearest radar | Forecast / county / fire zones |
 |---|------|----------|----------|-----------|---------------|--------------------------------|
-| 1 | Lubbock, TX | 33.5779, −101.8552 | LUB 49,33 | America/Chicago | KLBB | TXZ035 / TXC303 / TXZ035 |
-| 2 | Clovis, NM | 34.4048, −103.2052 | ABQ 222,82 | America/Denver | KFDX | NMZ235 / NMC009 / NMZ126 |
-| 3 | Fort Sumner, NM | 34.4717, −104.2456 | ABQ 184,87 | America/Denver | KFDX | NMZ237 / NMC011 / NMZ126 |
-| 4 | Socorro, NM | 34.0584, −106.8914 | ABQ 86,76 | America/Denver | KABX | NMZ220 / NMC053 / NMZ106 |
-| 5 | Albuquerque, NM | 35.0844, −106.6504 | ABQ 98,121 | America/Denver | KABX | NMZ219 / NMC001 / NMZ106 |
+| 1 | Socorro, NM | 34.0584, −106.8914 | ABQ 86,76 | America/Denver | KABX | NMZ220 / NMC053 / NMZ106 |
+| 2 | Albuquerque, NM | 35.0844, −106.6504 | ABQ 98,121 | America/Denver | KABX | NMZ219 / NMC001 / NMZ106 |
 
-(Verified against api.weather.gov on 2026-09-23.) For these five maps the alert query
-resolves to NM, OK and TX, and the title is "Local weather: Lubbock · Clovis · Fort
-Sumner · Socorro · Albuquerque".
+(Verified against api.weather.gov on 2026-09-23.) For these two maps the alert query
+resolves to NM and TX (Texas's bounding box reaches both maps, though no Texas land does),
+and the title is "Local weather: Socorro · Albuquerque". Until 2026-09-29 the example
+deployment also covered Lubbock TX, Clovis NM and Fort Sumner NM; the test suite still
+uses that five-site layout because it spans the Texas / New Mexico line.
 
 ### Changing the sites
 
@@ -179,8 +178,8 @@ the output directory, no longer linked, until you delete them.
   `weather/states.py`, made with `tools/state_bboxes.py`. The run log names the result,
   e.g. `alert areas: AZ,CO,NE (auto: …)`; a Chicago map gives `IL,IN,LM,MI,WI`, Honolulu's
   `HI,PH`. A box is larger than its state, so a neighbour can be included whose land is
-  not on any map: Oklahoma's box (panhandle to Red River) covers the Lubbock and Clovis
-  maps, and Nebraska's (its panhandle reaches 104.05° W) touches the edge of a Denver map.
+  not on any map: Oklahoma's box (panhandle to Red River) covers maps of Lubbock or Clovis,
+  and Nebraska's (its panhandle reaches 104.05° W) touches the edge of a Denver map.
   That only adds a few alerts to the download, because each alert is kept for a site by
   its own geometry. Codes listed with `auto` are added (`auto,PK`). An explicit list such
   as `NM,TX` still works, but when a site lies in a state the list leaves out (the site
@@ -242,8 +241,8 @@ credits as fixed HTML with links to the OpenStreetMap copyright page, IEM and we
 as the OSM attribution guidelines ask for on web pages.
 
 - **NOAA / National Weather Service** (api.weather.gov): US government data, public domain.
-  Keep the `User-Agent` and the request rate modest (with the five example sites this page
-  makes at most ~20 requests per 2-minute run, most of them served from the local cache;
+  Keep the `User-Agent` and the request rate modest (with the two example sites this page
+  makes at most ~12 requests per 2-minute run, most of them served from the local cache;
   each site adds up to 4).
 - **NMDOT / NMRoads.com** road information: the feed declares itself public domain
   ([CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/)), publisher NMDOT. The page
@@ -261,7 +260,7 @@ as the OSM attribution guidelines ask for on web pages.
   run by volunteers under the [OSM tile usage policy](https://operations.osmfoundation.org/policies/tiles/):
   a User-Agent that identifies the application (`WEATHER_USER_AGENT`) and light use. Each
   tile is **downloaded once and kept in the disk cache for good** (both themes and every
-  rebuild reuse it), so the five example sites cost about 45 tile requests in total, ever,
+  rebuild reuse it), so the two example sites cost about 20 tile requests in total, ever,
   not per run. OpenStreetMap **blocks** a User-Agent that is a library default, imitates a
   browser, or carries a placeholder contact such as `example.org` (checked 2026-09-24: the
   same string with a real address gets real tiles); its "Access blocked" tile comes with
@@ -387,11 +386,11 @@ Mexico's outline (Van Horn and Olton, Texas, do not; Farwell and Pecos do).
 error messages, the precedence of `--sites`, `WEATHER_SITES` and `WEATHER_SITES_FILE`, the
 startup checks (a site outside the US, a map across the 180th meridian, slugs repeated in
 any case, a list of only `;`), the derived title, the auto alert areas for the example
-sites (NM, OK, TX), for Denver + Flagstaff (AZ, CO, NE), the Four Corners (AZ, CO, NM,
+sites (NM, TX) and for the five-site Texas / New Mexico test layout (NM, OK, TX), for Denver + Flagstaff (AZ, CO, NE), the Four Corners (AZ, CO, NM,
 UT), Chicago (with Lake Michigan), Hawaii, Puerto Rico, Guam, American Samoa and the
 Aleutians (with their marine areas), `auto` plus codes, the report of an explicit list
 that leaves out a site's state, the Census and marine tables and their generator, and that
-no string in the code names one of the five example sites. `test_nws.py` moves a site
+no string in the code names one of the example sites. `test_nws.py` moves a site
 without changing its slug (its new metadata is fetched at once) and covers a point with no
 forecast grid. `test_main.py` runs the whole generator for Denver + Flagstaff (no road
 request, no road block, `"roads": "not applicable"`), Honolulu alone (no MRMS request,
@@ -603,7 +602,8 @@ Edit three things in that file:
   deployment's. The page footer shows it, and the installer prints it in its check
   commands. Without it the footer shows no address.
 
-Without further settings the page shows the example deployment's five sites. For your own
+Without further settings the page shows the example deployment's two sites (Socorro and
+Albuquerque). For your own
 places add `WEATHER_SITES_FILE` or `WEATHER_SITES` here (see
 [Changing the sites](#changing-the-sites)); the rest (alert areas, title, road closures)
 follows from the sites.
@@ -761,8 +761,8 @@ curl -s https://tau.kirx.net/myweather/status.json
 ```
 
 A normal run logs one line per site plus about seven more: it starts with
-`run started: 5 site(s) from …` (where the site list came from) and `alert areas: NM,OK,TX
-(auto: …)`, and ends with `done: sites ok 5/5, …` (for the five example sites). To run it
+`run started: 2 site(s) from …` (where the site list came from) and `alert areas: NM,TX
+(auto: …)`, and ends with `done: sites ok 2/2, …` (for the two example sites). To run it
 by hand with the output on the terminal (an env file that sets `WEATHER_LOG` wins over the
 `-`):
 
@@ -961,7 +961,7 @@ win over both. Durations are in seconds. The cron wrapper's own variables (`WEAT
 | `WEATHER_OUT_DIR` | `./out`, relative to the working directory (the checkout, under the cron wrapper); `install-cron.sh` writes the real path into `/etc/local-weather-awareness.env`, and `weather.env.example` has `/var/www/html/myweather` | output directory for `index.html`, `status.json`, PNGs |
 | `WEATHER_CACHE_DIR` | `~/.cache/local-weather-awareness` | disk cache (JSON, zone shapes, basemaps, last radar frame, lock) |
 | `WEATHER_LOCK_FILE` | `<cache>/run.lock` | single-instance lock |
-| `WEATHER_TITLE` | unset: derived from the site names, e.g. `Local weather: Lubbock · Clovis · Fort Sumner · Socorro · Albuquerque` | page title (`<title>` and masthead); the derived one lists the names up to their first comma, "+N more" beyond 80 characters |
+| `WEATHER_TITLE` | unset: derived from the site names, e.g. `Local weather: Socorro · Albuquerque` | page title (`<title>` and masthead); the derived one lists the names up to their first comma, "+N more" beyond 80 characters |
 | `WEATHER_PAGE_URL` | empty: no address shown | the page's public address, shown (and linked when it is `https://`) in the footer and printed by the installers, e.g. `https://tau.kirx.net/myweather/` for the example deployment |
 | `WEATHER_REFRESH_SECONDS` | `90` | page auto-reload interval (min 30): JavaScript reload that keeps open sections and scroll position, `<noscript>` meta refresh as fallback |
 | `WEATHER_UNITS` | `us` | `us` = °F/mph primary; `metric` = °C/km/h primary |
@@ -1140,10 +1140,10 @@ All text is HTML-escaped; links taken from the feeds are used only when they sta
 **Scope (the owner's decisions).**
 
 - **New Mexico only.** No other state's source is used at all. A map that does not reach
-  New Mexico (in the example deployment, Lubbock's, in Texas; decided by the state's
+  New Mexico (e.g. one of Lubbock, Texas; decided by the state's
   outline, padded by about a kilometre, not by its bounding box) has a block that
   reads "Road closures cover New Mexico state routes only; this map is outside New
-  Mexico.", and the part of a map beyond the state line (the Texas side of the Clovis map)
+  Mexico.", and the part of a map beyond the state line (e.g. the Texas side of a Clovis map)
   shows no road items. When no site's map reaches New Mexico, nothing road-related is
   fetched or shown and `status.json` reports `"roads": "not applicable"`. City streets
   (for example ABQRoads for Albuquerque) are not used either.

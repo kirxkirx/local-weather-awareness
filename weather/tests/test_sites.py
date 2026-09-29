@@ -105,7 +105,7 @@ def test_site_list_precedence(env, tmp_path):
     assert [s["slug"] for s in c.sites] == ["four_corners"]
     assert c.sites_source == "WEATHER_SITES (WEATHER_SITES_FILE not read: this takes precedence)"
     c = Config.from_env(sites=[dict(DEFAULT_SITES[0])])
-    assert [s["slug"] for s in c.sites] == ["lubbock"]
+    assert [s["slug"] for s in c.sites] == ["socorro"]
     assert c.sites_source.startswith("the command line (--sites)")
     # the file is not even opened while something with precedence is set ...
     env.setenv("WEATHER_SITES_FILE", str(tmp_path / "missing"))
@@ -135,7 +135,7 @@ def test_main_exits_2_on_a_bad_sites_file(env, tmp_path, fake_http, caplog):
 def test_title_is_derived_from_the_site_names(env):
     c = Config.from_env()
     assert c.title == ""
-    assert c.page_title == "Local weather: Lubbock · Clovis · Fort Sumner · Socorro · Albuquerque"
+    assert c.page_title == "Local weather: Socorro · Albuquerque"
     env.setenv("WEATHER_SITES", DENVER + ";" + FLAGSTAFF)
     assert Config.from_env().page_title == "Local weather: Denver · Flagstaff"
     env.setenv("WEATHER_TITLE", "  Our weather  ")
@@ -194,12 +194,22 @@ def test_parse_alert_areas():
 
 
 def test_auto_alert_areas_for_the_example_sites(env):
-    """The example deployment's five maps give NM and TX, plus OK: Oklahoma's box runs from
-    its panhandle (west edge -103.00) down to the Red River (south edge 33.61), so it covers
-    the north-east of the Lubbock map and the east of the Clovis map, where there is no
-    Oklahoma land. Harmless: alerts are kept by their own geometry, never by state."""
+    """The example deployment's maps (Socorro, Albuquerque) give NM plus TX: Texas's box
+    reaches west to El Paso (-106.65) and north to the panhandle (36.50), so it overlaps
+    both maps, where there is no Texas land. Harmless: alerts are kept by their own
+    geometry, never by state."""
     c = Config.from_env()
-    assert c.alert_areas == "auto" and c.alert_area_codes == ["NM", "OK", "TX"]
+    assert c.alert_areas == "auto" and c.alert_area_codes == ["NM", "TX"]
+
+
+def test_auto_alert_areas_for_a_texas_new_mexico_layout(env):
+    """Lubbock + eastern NM maps give NM and TX, plus OK: Oklahoma's box runs from its
+    panhandle (west edge -103.00) down to the Red River (south edge 33.61), so it covers the
+    north-east of the Lubbock map and the east of the Clovis map, where there is no Oklahoma
+    land."""
+    from weather.tests.conftest import TEST_SITES
+    c = Config.from_env(sites=[dict(s) for s in TEST_SITES])
+    assert c.alert_area_codes == ["NM", "OK", "TX"]
     frames = dict(zip([s["slug"] for s in c.sites], c.frame_bboxes))
     ok_box = states.STATE_BOXES["OK"][0]
     assert {s for s, f in frames.items() if geo.bbox_intersects(f, ok_box)} == {"lubbock", "clovis"}
