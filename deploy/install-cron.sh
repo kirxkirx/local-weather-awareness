@@ -1,10 +1,9 @@
 #!/bin/bash
-# Install local-weather-awareness as a cron job. No systemd needed: tau.kirx.net runs Gentoo
+# Install local-weather-awareness as a cron job, for hosts without systemd such as Gentoo
 # with OpenRC. Every 2 minutes cron runs deploy/local-weather-awareness-cron.sh as an
 # unprivileged user; it regenerates the static page into OUT_DIR, which Apache serves as
-# https://<host>/myweather/ (https://tau.kirx.net/myweather/ in the example deployment). (On
-# a systemd host deploy/install.sh does the same with a service + timer; use one or the
-# other, not both.)
+# https://<host>/myweather/. (On a systemd host deploy/install.sh does the same with a
+# service + timer; use one or the other, not both.)
 #
 # Usage:  sudo RUN_USER=weather ./deploy/install-cron.sh [OUT_DIR] [RUN_USER]
 #   OUT_DIR   where index.html + PNGs go. Default: WEATHER_OUT_DIR from

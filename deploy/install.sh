@@ -1,7 +1,6 @@
 #!/bin/bash
 # Install local-weather-awareness under systemd: a oneshot service + a 2-minute timer that
 # regenerate the static page into OUT_DIR, which Apache serves as https://<host>/myweather/.
-# (The example deployment, tau.kirx.net, has no systemd and uses deploy/install-cron.sh.)
 #
 # Usage:  sudo ./deploy/install.sh [OUT_DIR] [RUN_USER]
 #    or:  sudo OUT_DIR=/srv/www/myweather RUN_USER=weather ./deploy/install.sh
@@ -23,7 +22,7 @@
 # WEATHER_OUT_DIR / WEATHER_CACHE_DIR in an env file. It never touches the Apache config:
 # it renders the snippet and tells you where to copy it.
 #
-# Hosts without systemd (tau.kirx.net: Gentoo with OpenRC) use deploy/install-cron.sh, which
+# Hosts without systemd (such as Gentoo with OpenRC) use deploy/install-cron.sh, which
 # installs a crontab line for deploy/local-weather-awareness-cron.sh instead. Use one or the
 # other.
 set -euo pipefail

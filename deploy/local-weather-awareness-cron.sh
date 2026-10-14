@@ -1,6 +1,6 @@
 #!/bin/sh
 # local-weather-awareness cron wrapper: ONE run of the page generator, for hosts without
-# systemd (tau.kirx.net runs Gentoo with OpenRC) or any host with a cron daemon. The
+# systemd (such as Gentoo with OpenRC) or any host with a cron daemon. The
 # installer deploy/install-cron.sh puts this line into the run user's crontab:
 #
 #   */2 * * * * <checkout>/deploy/local-weather-awareness-cron.sh # local-weather-awareness

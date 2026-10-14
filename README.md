@@ -26,11 +26,23 @@ local weather situation awareness pages.**
 
 A Python 3.9+ script (standard library + Pillow) runs every 2 minutes, the MRMS radar cadence. It fetches public
 NOAA data, renders one radar map per site and theme, and writes a single self-contained
-`index.html`, which a web server serves as plain files. On the example host, tau.kirx.net
-(Gentoo Linux with OpenRC, no systemd), cron runs the script and Apache serves the page (see
-[Deploy](#deploy-on-a-gentooopenrc-host-with-cron-example-taukirxnet)). A systemd timer is
-included for [other hosts](#other-hosts-systemd). Nothing on the page is a control input;
-it is for people to read.
+`index.html`, which a web server serves as plain files. The example deployment runs on
+Gentoo Linux with OpenRC and no systemd: cron runs the script and Apache serves the page (see
+[Deploy](#deploy-on-a-gentooopenrc-host-with-cron)). A systemd timer is included for
+[other hosts](#other-hosts-systemd). Nothing on the page is a control input; it is for
+people to read.
+
+## Sister projects
+
+- [ttustatus](https://github.com/kirxkirx/ttustatus): the status page and ASCOM Alpaca
+  SafetyMonitor of an observatory's Raspberry Pi, which combines the sun, humidity, rain,
+  the NWS forecast and warnings, GOES lightning and MRMS radar into one `IsSafe` flag that
+  NINA reads. This project is derived from it.
+- [vlbaweather](https://github.com/kirxkirx/vlbaweather): the weather at the ten VLBA
+  antenna sites, with a GOOD / BAD verdict per antenna from NWS warnings, radar, GOES
+  lightning, forecasts and observations. It is built on this project's `weather` package and
+  draws its line between GOOD and BAD with the weather cuts of ttustatus. Live page:
+  https://tau.kirx.net/vlbaweather/.
 
 ## What the page shows
 
@@ -223,7 +235,7 @@ OpenStreetMap's tile servers block any User-Agent with a placeholder such as
 
 | Data | Source | Fetched / cached |
 |------|--------|------------------|
-| Alerts | NOAA/NWS `api.weather.gov/alerts/active?area=…` for the states, territories and marine areas on the maps (`NM,OK,TX` for the example sites; see [Sites](#changing-the-sites)) (CAP fields, polygon geometry for polygon-based products) | every run; last good copy reused for 20 min |
+| Alerts | NOAA/NWS `api.weather.gov/alerts/active?area=…` for the states, territories and marine areas on the maps (`NM,TX` for the example sites; see [Sites](#changing-the-sites)) (CAP fields, polygon geometry for polygon-based products) | every run; last good copy reused for 20 min |
 | Alert zone shapes | `api.weather.gov/zones/{forecast,county,fire}/{id}` (zone-based products carry no polygon) | on first sight of a zone id, then cached for a year; new ones only while half of the run's network budget is left, the rest in the next runs |
 | Site metadata | `api.weather.gov/points/{lat},{lon}`: grid, time zone, zones, station list | cached 7 days, per location |
 | 7-day forecast | `…/gridpoints/{grid}/forecast` | cached 30 min (last good kept 2 h) |
@@ -418,25 +430,24 @@ forecast grid, still a healthy run) and a site outside an explicit area list.
 
 CI (GitHub Actions) runs the same on every push.
 
-## Deploy on a Gentoo/OpenRC host with cron (example: tau.kirx.net)
+## Deploy on a Gentoo/OpenRC host with cron
 
-The example deployment, tau.kirx.net, runs Gentoo Linux with OpenRC and no systemd, so
-**cron** runs the generator. The checkout lives in the home of an ordinary admin account
-(`kirx` there) and the generator runs as `apache`, which owns Gentoo's web root, so it can
-write the output directory without any hand-over. `deploy/install-cron.sh` puts one line
-into `apache`'s crontab:
+On a Gentoo Linux host with OpenRC and no systemd, **cron** runs the generator. The checkout
+lives in the home of an ordinary admin account (`kirx` in the commands below) and the
+generator runs as `apache`, the web server's account. `deploy/install-cron.sh` puts one
+line into `apache`'s crontab:
 
 ```
 */2 * * * * /home/kirx/local-weather-awareness/deploy/local-weather-awareness-cron.sh # local-weather-awareness
 ```
 
-Apache then serves the output directory as https://tau.kirx.net/myweather/. The same steps
-work on any host with a cron daemon; use your own host name wherever tau.kirx.net appears.
+Apache then serves the output directory as `https://<host>/myweather/`. The same steps work
+on any host with a cron daemon.
 
 | What | Where |
 |------|-------|
 | checkout | `~kirx/local-weather-awareness`: your own account owns it and runs `git pull`; the run user only reads it |
-| run user | `apache`, the owner of the web root (a dedicated account is stricter, see step 3) |
+| run user | `apache`, the web server's account (a dedicated account is stricter, see step 3) |
 | output | `<DocumentRoot>/myweather`, on a stock Gentoo Apache `/var/www/localhost/htdocs/myweather` |
 | cache | `~apache/.cache/local-weather-awareness` (`apache`'s home is `/var/www`, outside `htdocs`) |
 | configuration | `/etc/local-weather-awareness.env`, optionally overridden by `~apache/local-weather-awareness.env` |
@@ -446,7 +457,8 @@ work on any host with a cron daemon; use your own host name wherever tau.kirx.ne
 installed `app-admin/sudo`, prefix the commands with `sudo` instead. Commands that must run
 as the run user are written with `su -s /bin/sh apache -c '…'`, which works from a root
 shell without sudo. Steps marked *(verify on the host)* follow Gentoo's documentation and
-defaults but have not been tried on tau.kirx.net itself; check them there the first time.
+defaults but were not tried on the example deployment; check them on your host the first
+time.
 
 ### 1. Packages
 
@@ -475,8 +487,8 @@ su -s /bin/sh apache -c 'cd / && env -i HOME=/var/www PATH=/usr/bin:/bin python3
 su -s /bin/sh apache -c 'cd / && env -i HOME=/var/www PATH=/usr/bin:/bin python3 -c "from PIL import features; print(features.check(\"zlib\"), features.check(\"freetype2\"))"'
 ```
 
-(Replace `/home/weather` with the run user's home if it is elsewhere. The installer in step
-6 runs the same checks the same way.)
+(For a run user other than `apache`, put its name and home in place of `apache` and
+`/var/www`. The installer in step 6 runs the same checks the same way.)
 
 - `No module named 'PIL'` means Pillow is not built for that Python version. See which
   versions have it with `ls -d /usr/lib*/python3*/site-packages/PIL`. Then do one of these:
@@ -489,6 +501,9 @@ su -s /bin/sh apache -c 'cd / && env -i HOME=/var/www PATH=/usr/bin:/bin python3
     `eselect python set …`).
   - Leave the system default alone and point the cron wrapper at a version Pillow has:
     `WEATHER_PYTHON=python3.12` in `/etc/local-weather-awareness.env`.
+  - Or point it at a virtualenv with Pillow: `WEATHER_PYTHON=/path/to/venv/bin/python3`. A
+    venv's interpreter uses the venv's packages without activation. Pillow from pip has
+    zlib and FreeType built in.
 
   *(verify on the host)*
 - The two flags must print `True True`: PNG maps need zlib, and the map labels need
@@ -531,17 +546,16 @@ grep -rn DocumentRoot /etc/apache2/vhosts.d/
 
 Gentoo's default is `/var/www/localhost/htdocs` (in `default_vhost.include`, which both the
 port-80 and the TLS default virtual hosts use). The output directory is then
-`/var/www/localhost/htdocs/myweather`, and the page appears at
-https://tau.kirx.net/myweather/. If tau.kirx.net has its own `<VirtualHost>` with a different
-DocumentRoot, use `<that DocumentRoot>/myweather` in step 5 instead *(verify on the host)*.
+`/var/www/localhost/htdocs/myweather`, and the page appears at `https://<host>/myweather/`.
+If your host name has its own `<VirtualHost>` with a different DocumentRoot, use
+`<that DocumentRoot>/myweather` in step 5 instead *(verify on the host)*.
 Any other directory works too; the snippet's `Alias` then publishes it as `/myweather/`.
 
 ### 3. Run user
 
-Use the account that owns the web root. On a stock Gentoo Apache that is `apache`:
+Use `apache`, the web server's account:
 
 ```bash
-ls -ld /var/www/localhost/htdocs     # drwxr-xr-x apache apache ... on tau.kirx.net
 getent passwd apache                 # home /var/www: the cache goes to /var/www/.cache/...
 ```
 
@@ -552,7 +566,7 @@ output directory then has to be handed to it first (see step 6).
 
 ### 4. Copy the repository
 
-Clone it as your own account (`kirx` on tau.kirx.net), not as root:
+Clone it as your own account (`kirx` here), not as root:
 
 ```bash
 su - kirx -c 'git clone https://github.com/kirxkirx/local-weather-awareness.git ~/local-weather-awareness'
@@ -565,7 +579,7 @@ Or from a workstation with rsync, run from the top of your checkout:
 ```bash
 rsync -a --exclude out --exclude '.cache*' --exclude .pytest_cache --exclude __pycache__ \
       --exclude '*.env' --exclude '.nfs*' --exclude .git --exclude .private-patterns \
-      ./ tau.kirx.net:local-weather-awareness/     # as kirx: ~kirx/local-weather-awareness
+      ./ <host>:local-weather-awareness/     # as kirx: ~kirx/local-weather-awareness
 ```
 
 The excludes keep development output, caches and any local `*.env` override out of the
@@ -578,7 +592,7 @@ checkout. It needs read access (a umask of 022 gives that) and the executable bi
 ```bash
 cat > /etc/local-weather-awareness.env <<'EOF'
 WEATHER_OUT_DIR=/var/www/localhost/htdocs/myweather
-WEATHER_PAGE_URL=https://tau.kirx.net/myweather/
+WEATHER_PAGE_URL=https://www.example.org/myweather/
 WEATHER_USER_AGENT=local-weather-awareness (+https://github.com/kirxkirx/local-weather-awareness; you@example.org)
 EOF
 chmod 0644 /etc/local-weather-awareness.env
@@ -598,9 +612,9 @@ Edit three things in that file:
   `local-weather-awareness (+https://github.com/kirxkirx/local-weather-awareness)`, names
   only the project, so every deployment should add its own address this way.
 - Set `WEATHER_OUT_DIR` to the DocumentRoot found in step 2, plus `/myweather`.
-- Set `WEATHER_PAGE_URL` to your page's public address; the line above is the example
-  deployment's. The page footer shows it, and the installer prints it in its check
-  commands. Without it the footer shows no address.
+- Set `WEATHER_PAGE_URL` to your page's public address: replace `www.example.org` with your
+  host's name. The page footer shows it, and the installer prints it in its check commands.
+  Without it the footer shows no address.
 
 Without further settings the page shows the example deployment's two sites (Socorro and
 Albuquerque). For your own
@@ -630,23 +644,22 @@ How the cron wrapper reads the files:
 
 ### 6. Install the cron job
 
+First create the output directory and hand it to the run user, then run the installer:
+
 ```bash
-RUN_USER=apache /home/kirx/local-weather-awareness/deploy/install-cron.sh
+mkdir -p /var/www/localhost/htdocs/myweather
+chown apache:apache /var/www/localhost/htdocs/myweather    # a dedicated user: weather:weather
+chmod 0755 /var/www/localhost/htdocs/myweather
+RUN_USER=apache /home/kirx/local-weather-awareness/deploy/install-cron.sh   # or RUN_USER=weather
 # preview only, nothing changed, no root needed:
 #   DRY_RUN=1 RUN_USER=apache /home/kirx/local-weather-awareness/deploy/install-cron.sh
 ```
 
-With `RUN_USER=apache` the installer creates the output directory as `apache`, which owns
-`htdocs`. With a dedicated run user it cannot: the installer never creates a directory as
-root inside a parent that root does not own alone, and it stops with an error that names
-that parent. Create the directory yourself, hand it to that user and rerun the installer:
-
-```bash
-mkdir -p /var/www/localhost/htdocs/myweather
-chown weather:weather /var/www/localhost/htdocs/myweather
-chmod 0755 /var/www/localhost/htdocs/myweather
-RUN_USER=weather /home/kirx/local-weather-awareness/deploy/install-cron.sh
-```
+On Gentoo `/var/www` belongs to `apache`, and the installer never creates a directory as root
+inside a tree that another user owns part of: it creates the output directory itself only
+when the run user can write `htdocs`, which root owns on a fresh install *(verify on the
+host)*. Without the first three commands it stops with an error that names the directory
+and prints them.
 
 Always name `RUN_USER`. Without it the installer picks the sudo caller, else the owner of the
 checkout (`kirx` here), which cannot write the web root. It refuses root. It is idempotent: rerun it whenever you
@@ -671,12 +684,12 @@ like. It:
    the run user something it should not have:
    - symlinks are resolved first, and a system location (`/etc`, `/usr`, `/root`, `/boot`,
      `/var/log`, …, or a bare `/var/www/html`) is refused;
-   - under a root-owned parent (`/var/www/localhost/htdocs/myweather`) root creates the
-     directory; an existing one there is taken over only if it is the default output
-     directory or already belongs to the run user;
-   - in space the run user controls (`~apache/.cache/local-weather-awareness`) the run user
-     creates it itself, so no root action follows a path the run user could swap for a
-     symlink.
+   - where root alone owns every parent (`/var/www/html/myweather` on Debian/RHEL) root
+     creates the directory; an existing one there is taken over only if it is the default
+     output directory or already belongs to the run user;
+   - in space the run user controls (`~apache/.cache/local-weather-awareness`, and on Gentoo
+     everything under `/var/www`) the run user creates it itself, so no root action follows
+     a path the run user could swap for a symlink.
 5. **Completes `/etc/local-weather-awareness.env`**: it appends the resolved
    `WEATHER_OUT_DIR` and `WEATHER_CACHE_DIR` when those lines are missing and sets mode
    0644. It never rewrites any other line.
@@ -709,7 +722,7 @@ settings go in an env file:
 | Variable | Default | Meaning |
 |----------|---------|---------|
 | `WEATHER_LOG` | unset | Unset: syslog via `logger -t local-weather-awareness` when `logger` and `/dev/log` exist, else `<cache>/cron.log`. A path: append to that file. `-`: stdout. A log file larger than 1 MB is renamed to `<file>.1` before the next run (one old copy is kept). |
-| `WEATHER_PYTHON` | `python3` | interpreter, e.g. `python3.12` when Pillow is built only for that version |
+| `WEATHER_PYTHON` | `python3` | interpreter, e.g. `python3.12` when Pillow is built only for that version, or a virtualenv's `/path/to/venv/bin/python3` (no activation needed) |
 | `WEATHER_TIMEOUT` | `600` | seconds before a wedged run is stopped (exit status 124); `0` = no limit |
 | `WEATHER_GENERATOR` | `make_weather_page.py` | script to run, relative to the checkout (the tests use it) |
 | `PATH` | cron's, `/usr/bin:/bin` with cronie | where `python3`, `nice`, `timeout` and `logger` are found |
@@ -725,8 +738,8 @@ rc-service apache2 reload
 Gentoo's `httpd.conf` includes `/etc/apache2/vhosts.d/*.conf` at server level. The snippet
 therefore applies to every virtual host, the TLS one included, and its file name must end in
 `.conf`. Check with `grep -n vhosts.d /etc/apache2/httpd.conf` *(verify on the host)*.
-Alternatively, paste its lines inside the tau.kirx.net `<VirtualHost *:443>` block (on a
-stock install, `00_default_ssl_vhost.conf`).
+Alternatively, paste its lines inside your site's `<VirtualHost *:443>` block (on a stock
+install, `00_default_ssl_vhost.conf`).
 
 The snippet contains:
 
@@ -756,8 +769,9 @@ rc-service cronie status                    # started
 # the runs' log lines (wherever your syslog writes):
 grep local-weather-awareness /var/log/messages | tail -n 20
 ls -l /var/www/localhost/htdocs/myweather/  # index.html, status.json, radar_<site>_<theme>.png
-curl -I https://tau.kirx.net/myweather/     # 200, Cache-Control: max-age=60
-curl -s https://tau.kirx.net/myweather/status.json
+# with your page's address in place of www.example.org:
+curl -I https://www.example.org/myweather/  # 200, Cache-Control: max-age=60
+curl -s https://www.example.org/myweather/status.json
 ```
 
 A normal run logs one line per site plus about seven more: it starts with
@@ -958,7 +972,7 @@ win over both. Durations are in seconds. The cron wrapper's own variables (`WEAT
 |----------|---------|---------|
 | `WEATHER_SITES` | unset: the sites file, else the built-in list (the [example configuration](#example-configuration-taukirxnet)) | `slug\|Name\|lat\|lon[\|tz];…` sets the site list; `tz` is an IANA name (e.g. `America/Denver`) used for local times when NWS `/points` is unavailable; an unknown zone, a site outside the US, a repeated slug or a value of only `;` is a startup error (see [Changing the sites](#changing-the-sites)) |
 | `WEATHER_SITES_FILE` | unset | a file with the same entries, one per line, `#` comment lines allowed (format: `sites.example`); used when `WEATHER_SITES` is unset. Unreadable or malformed: startup error (exit status 2) naming the file and line, never a fall-back |
-| `WEATHER_OUT_DIR` | `./out`, relative to the working directory (the checkout, under the cron wrapper); `install-cron.sh` writes the real path into `/etc/local-weather-awareness.env`, and `weather.env.example` has `/var/www/html/myweather` | output directory for `index.html`, `status.json`, PNGs |
+| `WEATHER_OUT_DIR` | `./out`, relative to the working directory (the checkout, under the cron wrapper); `install-cron.sh` writes the real path into `/etc/local-weather-awareness.env`, and `weather.env.example` shows `/var/www/localhost/htdocs/myweather` (Gentoo; `/var/www/html/myweather` on Debian/RHEL) | output directory for `index.html`, `status.json`, PNGs |
 | `WEATHER_CACHE_DIR` | `~/.cache/local-weather-awareness` | disk cache (JSON, zone shapes, basemaps, last radar frame, lock) |
 | `WEATHER_LOCK_FILE` | `<cache>/run.lock` | single-instance lock |
 | `WEATHER_TITLE` | unset: derived from the site names, e.g. `Local weather: Socorro · Albuquerque` | page title (`<title>` and masthead); the derived one lists the names up to their first comma, "+N more" beyond 80 characters |
@@ -977,7 +991,7 @@ win over both. Durations are in seconds. The cron wrapper's own variables (`WEAT
 | `WEATHER_FORECAST_TTL` / `_MAX_STALE` | `1800` / `7200` | 7-day forecast: re-fetch after / keep last good until |
 | `WEATHER_HOURLY_TTL` / `_MAX_STALE` | `1800` / `7200` | hourly forecast, same |
 | `WEATHER_OBS_TTL` / `_MAX_STALE` | `600` / `3600` | observations, same |
-| `WEATHER_ALERT_AREAS` | `auto` | states, territories and marine areas in the alerts query: `auto` = every one whose bounding box touches a site's map (`NM,OK,TX` for the example sites, `IL,IN,LM,MI,WI` for Chicago; the run log names them); codes listed with `auto` are added (`auto,PK`); without `auto`, two-letter codes such as `NM,TX` that cover the maps (a site in a state the list leaves out is reported in the log, the footer and `status.json`); a malformed value is a startup error |
+| `WEATHER_ALERT_AREAS` | `auto` | states, territories and marine areas in the alerts query: `auto` = every one whose bounding box touches a site's map (`NM,TX` for the example sites, `IL,IN,LM,MI,WI` for Chicago; the run log names them); codes listed with `auto` are added (`auto,PK`); without `auto`, two-letter codes such as `NM,TX` that cover the maps (a site in a state the list leaves out is reported in the log, the footer and `status.json`); a malformed value is a startup error |
 | `WEATHER_ALERTS_MAX_STALE` | `1200` | keep the last good alert feed this long on failure |
 | `WEATHER_ALERT_FILL_ALPHA` | `55` | 0..255 fill opacity of alert areas on the maps |
 | `WEATHER_ALERT_COLORS` | empty | per-event colour overrides, `Event Name=#rrggbb;Other Event=#rrggbb`; names as NWS sends them, case-insensitive; a malformed entry is a startup error |
@@ -1010,7 +1024,7 @@ into the PNGs (the page footer has its own linked credits).
 ## How alerts are shown
 
 **Selection.** Every run fetches all active alerts of the states, territories and marine
-areas on the maps (`WEATHER_ALERT_AREAS=auto`; NM, OK and TX for the example sites) and
+areas on the maps (`WEATHER_ALERT_AREAS=auto`; NM and TX for the example sites) and
 keeps those with `status == Actual`, `messageType` `Alert` or `Update` (no cancellations,
 tests or exercises) whose `ends` (else `expires`) time has not passed. When the feed is
 unreachable the last good copy is used for up to `WEATHER_ALERTS_MAX_STALE` (20 min) and
@@ -1382,7 +1396,7 @@ blocks, and maps as before.
   site's map reaches New Mexico, 2 conditional NMRoads requests (answered `304` without a
   body unless NMDOT changed something; ~730 KB when it did) and 1 storm-report request
   (~10 KB). Basemap tiles are fetched once per map.
-- **Cron (tau.kirx.net).** `deploy/local-weather-awareness-cron.sh` runs the generator as an
+- **Cron (Gentoo/OpenRC).** `deploy/local-weather-awareness-cron.sh` runs the generator as an
   unprivileged user (it refuses root) with `nice -n 10`, umask 022 and `timeout 600`, which
   kills a wedged run while leaving ample room for the 90 s network budget plus a few
   seconds of rendering. Keep `WEATHER_RUN_BUDGET` well below `WEATHER_TIMEOUT`. It reads
@@ -1399,8 +1413,8 @@ blocks, and maps as before.
 
 ## License
 
-No license has been chosen for this code yet. Until the owner adds a `LICENSE` file, the
-usual copyright rules apply: you may read the code here, but no permission to copy, modify
-or redistribute it is granted. The data shown on the page are not covered by this: they come
-from public sources under their own terms (see [Data sources and
+[0BSD](LICENSE), the BSD Zero Clause License: anyone may use, copy, modify and distribute
+this code for any purpose, with or without fee and with no conditions attached; it comes
+without any warranty. The data shown on the page are not covered by this: they come from
+public sources under their own terms (see [Data sources and
 credits](#data-sources-and-credits)).

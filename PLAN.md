@@ -213,8 +213,8 @@ Flash Flood Warnings), HTML validated, tests green, then a multi-agent review pa
 > Superseded (2026-09-23): tau.kirx.net runs Gentoo with OpenRC and **no systemd**, so it
 > uses cron (`deploy/local-weather-awareness-cron.sh`, installed by
 > `deploy/install-cron.sh`) and Gentoo's DocumentRoot (`/var/www/localhost/htdocs/myweather`
-> on a stock install). See README, "Deploy on a Gentoo/OpenRC host with cron (example:
-> tau.kirx.net)". The systemd steps below remain for other hosts ("Other hosts: systemd").
+> on a stock install). See README, "Deploy on a Gentoo/OpenRC host with cron". The systemd
+> steps below remain for other hosts ("Other hosts: systemd").
 > This section is kept as the original plan.
 
 Written as step-by-step instructions in `README.md` and encoded in `deploy/install.sh`:
@@ -429,8 +429,8 @@ Aleutians, a moved site, sign typos, Texas towns near New Mexico). Changes:
 
 - **Nothing names the example host by default.** `WEATHER_PAGE_URL` defaults to empty (the
   footer then shows no address); the installers print `WEATHER_PAGE_URL` from the env
-  files, else a guess from the host name, never tau.kirx.net. The README's tau.kirx.net
-  env file sets it. The unit comment no longer counts the five sites' ten maps, and
+  files, else a guess from the host name, never tau.kirx.net. The README's example env
+  file sets it. The unit comment no longer counts the five sites' ten maps, and
   `weather.env.example` no longer repeats the five sites.
 - **The page carries its own disclaimer** (not official, not the only source for safety
   decisions, use weather.gov): in the footer and under the alerts banner, whatever the
