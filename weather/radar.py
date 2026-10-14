@@ -781,6 +781,11 @@ class SiteMap:
     The remap table (frame pixel -> MRMS cell) and the basemap are built lazily and kept
     for the life of the object, so rendering a second frame costs only the compositing."""
 
+    # The scale bars, (label, length in km), drawn bottom-left from the bottom up. A
+    # subclass may draw others, e.g. 10 mi and 10 km for a map with range rings in km.
+    SCALE_BARS: Tuple[Tuple[str, float], ...] = (("25 mi", 25 * geo.MI_TO_KM),
+                                                 ("10 mi", 10 * geo.MI_TO_KM))
+
     def __init__(self, cfg, cache, site, theme: str, tile_url: str):
         self.cfg = cfg
         self.cache = cache
@@ -1292,7 +1297,7 @@ class SiteMap:
         # scale bars, bottom-left (px_for_km is exact east-west at the centre latitude)
         bx, by = 12, bottom - 5
         scale_top = by
-        for label, km in (("25 mi", 25 * geo.MI_TO_KM), ("10 mi", 10 * geo.MI_TO_KM)):
+        for label, km in self.SCALE_BARS:
             length = fr.px_for_km(km)
             d.line([bx, by, bx + length, by], fill=ink, width=3)
             d.line([bx, by - 3, bx, by + 3], fill=ink, width=2)
@@ -1310,15 +1315,19 @@ class SiteMap:
         x0, y0 = w - bar_w - 10, bottom - sh - 4
         lines = []
         ts = radar.get("ts")
+        # The caption names the radar product: MRMS unless the result says otherwise
+        # (``radar["label"]``: for a subclass whose ``_radar_layer`` draws another product's
+        # frame, such as an NWS radar composite for a site outside the MRMS grid).
+        label = str(radar.get("label") or "MRMS")
         if radar.get("ok") and isinstance(ts, datetime):
-            cap = "MRMS " + ts.astimezone(timezone.utc).strftime("%H:%MZ")
+            cap = label + " " + ts.astimezone(timezone.utc).strftime("%H:%MZ")
             if tz:
                 cap += " · " + util.fmt_local(ts, tz, "%H:%M %Z")
             lines.append((cap, col["text"]))
             if radar.get("stale"):
                 lines.append(("radar STALE (%s)" % util.fmt_age(radar.get("age_s")), col["warn"]))
         elif radar.get("ok"):
-            lines.append(("MRMS (frame time unknown)", col["text"]))
+            lines.append((label + " (frame time unknown)", col["text"]))
         elif radar.get("not_applicable"):
             # no map of this run reaches the MRMS grid: nothing was fetched, nothing failed
             lines.append((str(radar.get("error") or "no radar here"), col["warn"]))

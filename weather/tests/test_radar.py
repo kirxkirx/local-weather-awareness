@@ -897,6 +897,28 @@ def test_roads_outside_the_frame_are_skipped(cfg, cache, tiles, site):
     assert ex == pytest.approx(w - 1 - radar._symbol_extent("water"))
 
 
+def test_scale_bars_come_from_the_class(cfg, cache, tiles, site, monkeypatch):
+    """25 mi and 10 mi on this page's maps; a subclass may draw others (here 5 km)."""
+    drawn = []
+    real_text = radar._draw_text
+
+    def spy(d, xy, text, *a, **k):
+        drawn.append(text)
+        return real_text(d, xy, text, *a, **k)
+    monkeypatch.setattr(radar, "_draw_text", spy)
+
+    class Km(radar.SiteMap):
+        SCALE_BARS = (("5 km", 5.0),)
+    labels = {}
+    for cls in (radar.SiteMap, Km):
+        del drawn[:]
+        _png_bytes(cls(cfg, cache, site, "light", cfg.tile_url_light),
+                   os.path.join(cfg.out_dir, "scale.png"))
+        labels[cls] = [t for t in drawn if t.endswith((" mi", " km"))]
+    assert labels[radar.SiteMap] == ["25 mi", "10 mi"]
+    assert labels[Km] == ["5 km"]
+
+
 def test_road_key_only_when_something_is_drawn(cfg, cache, tiles, site):
     lon, lat = site["lon"], site["lat"]
     sm = radar.SiteMap(cfg, cache, site, "light", cfg.tile_url_light)
@@ -1324,3 +1346,28 @@ def test_legacy_cache_without_ok_meta_is_refetched_once(cfg, cache, tiles, site)
     assert len(tiles.calls) == 2 * n                        # every tile fetched once more
     radar.SiteMap(cfg, cache, site, "light", cfg.tile_url_light).basemap()
     assert len(tiles.calls) == 2 * n                        # and kept from then on
+
+
+def test_caption_names_the_product_from_the_radar_label(cfg, cache, tiles, site, frame_img, monkeypatch):
+    """``radar["label"]`` replaces "MRMS" in the caption (for a frame of another product, such
+    as an NWS radar composite); without it the caption reads as before."""
+    texts = []
+    orig = radar._draw_text
+
+    def spy(draw, xy, text, font, **kw):
+        texts.append(text)
+        return orig(draw, xy, text, font, **kw)
+    monkeypatch.setattr(radar, "_draw_text", spy)
+    # 600 px: the long caption must fit in Pillow's bitmap font too
+    cfg.map_px = 600
+    sm = radar.SiteMap(cfg, cache, site, "dark", cfg.tile_url_dark)
+    out = os.path.join(cfg.out_dir, "label.png")
+    assert sm.render(_radar(frame_img), [], out)["ok"]
+    assert any(t.startswith("MRMS 15:12Z") for t in texts)
+    texts.clear()
+    res = sm.render(dict(_radar(frame_img), label="NWS Hawaii composite"), [], out)
+    assert res["ok"] and any(t.startswith("NWS Hawaii composite 15:12Z") for t in texts)
+    assert not any(t.startswith("MRMS") for t in texts)
+    texts.clear()
+    sm.render(dict(_radar(frame_img), label="NWS Hawaii composite", ts=None), [], out)
+    assert any(t == "NWS Hawaii composite (frame time unknown)" for t in texts)
