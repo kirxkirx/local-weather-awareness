@@ -1620,7 +1620,7 @@ def test_page_url_is_shown_only_when_set(cfg, run):
     assert cfg.page_url == ""
     foot = page.render_html(cfg, run).split("<h2>Sources</h2>", 1)[1]
     last = foot[foot.rindex('<p class="foot">'):]
-    assert "<br>generated 2026-09-23 16:12:00 UTC · refreshes every 90 s</p>" in last
+    assert "<br>generated 2026-09-23 16:12:00 UTC · refreshes every 90 s<br>Source code: " in last
     assert "tau.kirx.net" not in foot and "href=\"https://example" not in foot
     cfg.page_url = "https://wx.example.org/myweather/"
     foot = page.render_html(cfg, run).split("<h2>Sources</h2>", 1)[1]
@@ -1699,3 +1699,20 @@ def test_products_nws_does_not_provide_are_not_errors(cfg, run):
         doc = json.load(f)
     assert not any("socorro" in p for p in doc["problems"]), doc["problems"]
     assert doc["sites"]["socorro"]["forecast_ok"] is False
+
+
+def test_footer_ends_with_a_link_to_the_source_code(cfg, run):
+    """The last footer line links to the repository the page's code comes from: this one by
+    default, another for a fork; anything but an https URL, or nothing, gives no link."""
+    assert cfg.source_url == "https://github.com/kirxkirx/local-weather-awareness"
+    foot = page.render_html(cfg, run).split("<h2>Sources</h2>", 1)[1]
+    last = foot[foot.rindex('<p class="foot">'):].split("</p>", 1)[0]
+    assert last.endswith('<br>Source code: <a href="https://github.com/kirxkirx/local-weather-awareness" '
+                         'rel="noopener">github.com/kirxkirx/local-weather-awareness</a>')
+    cfg.source_url = "https://example.org/fork/<x>"
+    assert ('<a href="https://example.org/fork/&lt;x&gt;" rel="noopener">example.org/fork/&lt;x&gt;</a>'
+            in page.render_html(cfg, run))
+    for no_link in ("", "http://example.org/fork", "javascript:alert(1)", None):
+        cfg.source_url = no_link
+        out = page.render_html(cfg, run)
+        assert "Source code:" not in out and "could not be rendered" not in out

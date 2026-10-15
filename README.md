@@ -91,8 +91,9 @@ Page-wide:
   short line saying that the page is not an official NWS product (for warnings, use
   weather.gov).
 - A footer with per-source freshness, linked credits, the page's disclaimer (not an
-  official product, not the only source for safety decisions) and the page's address when
-  `WEATHER_PAGE_URL` is set.
+  official product, not the only source for safety decisions), the page's address when
+  `WEATHER_PAGE_URL` is set, and as its last line a link to this repository, the source
+  code (a fork changes `source_url` in `weather/config.py`).
 
 The page reloads itself every 90 seconds (`WEATHER_REFRESH_SECONDS`) with a little JavaScript
 that keeps open sections and the scroll position. Without JavaScript, a `<noscript>` meta
