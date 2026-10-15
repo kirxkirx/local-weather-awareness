@@ -1,3 +1,5 @@
+[![CI](https://github.com/kirxkirx/local-weather-awareness/actions/workflows/ci.yml/badge.svg)](https://github.com/kirxkirx/local-weather-awareness/actions/workflows/ci.yml)
+
 # local-weather-awareness
 
 **This repository is a test of how public weather data can be used to create personalized
