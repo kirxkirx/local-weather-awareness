@@ -39,10 +39,10 @@ people to read.
   the NWS forecast and warnings, GOES lightning and MRMS radar into one `IsSafe` flag that
   NINA reads. This project is derived from it.
 - [vlbaweather](https://github.com/kirxkirx/vlbaweather): the weather at the ten VLBA
-  antenna sites, with a GOOD / BAD verdict per antenna from NWS warnings, radar, GOES
-  lightning, forecasts and observations. It is built on this project's `weather` package and
-  draws its line between GOOD and BAD with the weather cuts of ttustatus. Live page:
-  https://tau.kirx.net/vlbaweather/.
+  antenna sites, the VLA and the GBT, with a GOOD / BAD verdict per site from NWS warnings,
+  radar, GOES lightning, forecasts and observations. It is built on this project's `weather`
+  package and draws its line between GOOD and BAD with the weather cuts of ttustatus. Live
+  page: https://tau.kirx.net/vlbaweather/.
 
 ## What the page shows
 
